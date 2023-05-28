@@ -69,14 +69,14 @@ ResultCode SetupProtectedMode(
     if (result != SBOX_ALL_OK)
       break;
 
-    result = config->AddAppContainerProfile(
-      package_name, true);
+//  result = config->AddAppContainerProfile(
+//    package_name, true);
 
-    if (result == SBOX_ERROR_UNSUPPORTED)
-    {
-      LOG(INFO) << L"AppContainer profile is not supported" << std::endl;
-      result = SBOX_ALL_OK;
-    }
+//  if (result == SBOX_ERROR_UNSUPPORTED)
+//  {
+//    LOG(INFO) << L"AppContainer profile is not supported" << std::endl;
+//    result = SBOX_ALL_OK;
+//  }
 
     result = config->AddRule(SubSystem::kWin32kLockdown, Semantics::kFakeGdiInit, nullptr);
     if (result != SBOX_ALL_OK)
