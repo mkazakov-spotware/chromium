@@ -1,9 +1,50 @@
+#include <netioapi.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
 #include <windows.h>
 
 #include <iostream>
 #include <string>
+
+#pragma comment(lib, "Iphlpapi.lib")
+
+int win32_getifentry()
+{
+  DWORD dwRetVal = 0;
+  unsigned int i;
+
+  MIB_IF_TABLE2 *pIfTable;
+  MIB_IF_ROW2 *pIfRow;
+
+  dwRetVal = GetIfTable2(&pIfTable);
+
+  if (dwRetVal != NO_ERROR) {
+    fprintf(stderr, "GetIfTable2 return value is %lu\n", dwRetVal);
+    LPSTR messageBuffer = nullptr;
+    FormatMessageA(
+      FORMAT_MESSAGE_ALLOCATE_BUFFER
+        | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+      NULL, dwRetVal, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+      (LPSTR)&messageBuffer, 0, NULL);
+
+    fprintf(stderr, "Formatted message is %s\n", messageBuffer);
+    LocalFree(messageBuffer);
+    return -1;
+  }
+
+  fprintf(stderr, "\tNum Entries: %ld\n\n", pIfTable->NumEntries);
+  for (i = 0; i < pIfTable->NumEntries; i++) {
+    pIfRow = &pIfTable->Table[i];
+
+    fprintf(stderr, "[%lu]:\t ", pIfRow->InterfaceIndex);
+    fprintf(stderr, "%ws", pIfRow->Alias);
+
+    fprintf(stderr, "   \t(%ws)", pIfRow->Description);
+    fprintf(stderr, "\n");
+  }
+  return 0;
+}
 
 std::string GetLastErrorAsString() {
   DWORD errorMessageID = ::GetLastError();
@@ -125,6 +166,8 @@ int run()
     std::cerr << GetLastErrorAsString() << std::endl;
     return -3;
   }
+
+  win32_getifentry();
 
   return 0;
 }
