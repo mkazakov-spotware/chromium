@@ -1,13 +1,24 @@
+#ifndef _UNICODE
+#define _UNICODE
+#define UNICODE
+#endif
+
+#include <winsock2.h>
+#include <ws2tcpip.h>
+
+#include <windows.h>
+
 #include <netioapi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
-#include <windows.h>
 
 #include <iostream>
 #include <string>
 
+
 #pragma comment(lib, "Iphlpapi.lib")
+#pragma comment(lib, "Advapi32.lib")
 
 int win32_getifentry()
 {
@@ -153,7 +164,6 @@ int run()
     }
     else {
       std::wcerr << L"File " << file << L" has been created, but it shoudn't be!!!" << std::endl;
-      return -2;
     }
   }
 
