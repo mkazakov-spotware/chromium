@@ -6,9 +6,11 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
+#include <iphlpapi.h>
+#include <icmpapi.h>
+
 #include <windows.h>
 
-#include <netioapi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
@@ -17,8 +19,9 @@
 #include <string>
 
 
-#pragma comment(lib, "Iphlpapi.lib")
 #pragma comment(lib, "Advapi32.lib")
+#pragma comment(lib, "Iphlpapi.lib")
+#pragma comment(lib, "ws2_32.lib")
 
 int win32_getifentry()
 {
@@ -53,6 +56,62 @@ int win32_getifentry()
 
     fprintf(stderr, "   \t(%ws)", pIfRow->Description);
     fprintf(stderr, "\n");
+  }
+  return 0;
+}
+
+int ping_server(const char *ip) {
+  HANDLE hIcmpFile;
+  unsigned long ipaddr = INADDR_NONE;
+  DWORD dwRetVal = 0;
+  char SendData[32] = "Data Buffer";
+  LPVOID ReplyBuffer = NULL;
+  DWORD ReplySize = 0;
+
+  ipaddr = inet_addr(ip);
+  if (ipaddr == INADDR_NONE) {
+    fprintf(stderr, "IP is None\n");
+    return 1;
+  }
+
+  hIcmpFile = IcmpCreateFile();
+  if (hIcmpFile == INVALID_HANDLE_VALUE) {
+    fprintf(stderr, "\tUnable to open handle.\n");
+    fprintf(stderr, "IcmpCreatefile returned error: %ld\n", GetLastError() );
+    return 1;
+  }
+
+  ReplySize = sizeof(ICMP_ECHO_REPLY) + sizeof(SendData);
+  ReplyBuffer = (VOID*) malloc(ReplySize);
+  if (ReplyBuffer == NULL) {
+    fprintf(stderr, "\tUnable to allocate memory\n");
+    return 1;
+  }
+
+  dwRetVal = IcmpSendEcho(hIcmpFile, ipaddr, SendData, sizeof(SendData),
+      NULL, ReplyBuffer, ReplySize, 1000);
+  if (dwRetVal != 0) {
+    PICMP_ECHO_REPLY pEchoReply = (PICMP_ECHO_REPLY)ReplyBuffer;
+    struct in_addr ReplyAddr;
+    ReplyAddr.S_un.S_addr = pEchoReply->Address;
+    fprintf(stderr, "\tSent icmp message to %s\n", ip);
+    if (dwRetVal > 1) {
+      fprintf(stderr, "\tReceived %ld icmp message responses\n", dwRetVal);
+      fprintf(stderr, "\tInformation from the first response:\n");
+    }
+    else {
+      fprintf(stderr, "\tReceived %ld icmp message response\n", dwRetVal);
+      fprintf(stderr, "\tInformation from this response:\n");
+    }
+    fprintf(stderr, "\t  Received from %s\n", inet_ntoa( ReplyAddr ) );
+    fprintf(stderr, "\t  Status = %ld\n", pEchoReply->Status);
+    fprintf(stderr, "\t  Roundtrip time = %ld milliseconds\n",
+        pEchoReply->RoundTripTime);
+  }
+  else {
+    fprintf(stderr, "\tCall to IcmpSendEcho failed.\n");
+    fprintf(stderr, "\tIcmpSendEcho returned error: %ld\n", GetLastError() );
+    return 1;
   }
   return 0;
 }
@@ -178,6 +237,7 @@ int run()
   }
 
   win32_getifentry();
+  ping_server("8.8.8.8");
 
   return 0;
 }
