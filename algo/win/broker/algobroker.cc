@@ -30,11 +30,11 @@ ResultCode SetupProtectedMode(
 
   do {
     result = config->SetTokenLevel(
-      USER_RESTRICTED_SAME_ACCESS, TokenLevel::USER_LOCKDOWN);
+      USER_RESTRICTED_SAME_ACCESS, TokenLevel::USER_LIMITED);
     if (result != SBOX_ALL_OK)
       break;
 
-    config->SetDelayedIntegrityLevel(INTEGRITY_LEVEL_UNTRUSTED);
+    config->SetDelayedIntegrityLevel(INTEGRITY_LEVEL_MEDIUM);
 
     result = config->SetProcessMitigations(
       sandbox::MITIGATION_DEP | sandbox::MITIGATION_DEP_NO_ATL_THUNK |
