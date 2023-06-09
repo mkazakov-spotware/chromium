@@ -18,6 +18,14 @@
       "readOnly": false
     },
     {
+      "pattern": "\\??\\C:\\Users\\alex\\lab\\chromium2\\src\\out\\x32_algo\\debug.log",
+      "readOnly": false
+    },
+    {
+      "pattern": "\\??\\C:\\Users\\alex\\lab\\chromium2\\src\\out\\debug.log",
+      "readOnly": false
+    },
+    {
       "pattern": "\\??\\C:\\Windows\\*",
       "readOnly": true
     },

@@ -10,3 +10,7 @@ SET __CT_DOTNET_gcServer=1
 SET __CT_DOTNET_gcConcurrent=1
 SET __CT_DOTNET_GCCpuGroup=1
 SET __CT_DOTNET_Thread_UseAllCpuGroups=1
+
+SET DOTNET_EnableDiagnostics=0
+SET COMPlus_EnableDiagnostics=0
+SET CORECLR_ENABLE_PROFILING=0
