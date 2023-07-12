@@ -5,6 +5,7 @@
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <wininet.h>
 
 #include <iphlpapi.h>
 #include <icmpapi.h>
@@ -22,6 +23,7 @@
 #pragma comment(lib, "Advapi32.lib")
 #pragma comment(lib, "Iphlpapi.lib")
 #pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "WinInet.lib")
 
 int win32_getifentry()
 {
@@ -114,6 +116,50 @@ int ping_server(const char *ip) {
     return 1;
   }
   return 0;
+}
+
+std::wstring CharPToWstring(const char* _charP)
+{
+  return std::wstring(_charP, _charP + strlen(_charP));
+}
+
+std::wstring SendHTTPSRequest_GET(const std::wstring& _server, const std::wstring& _page, const std::wstring& _params = L"")
+{
+  char szData[1024];
+  HINTERNET hInternet = ::InternetOpen(TEXT("WinInet Test"), INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, INTERNET_FLAG_SECURE);
+  if (hInternet != NULL)
+  {
+    HINTERNET hConnect = ::InternetConnect(hInternet, _server.c_str(), INTERNET_DEFAULT_HTTPS_PORT, NULL,NULL, INTERNET_SERVICE_HTTP, 0, 1);
+    if (hConnect != NULL)
+    {
+      std::wstring request = _page + (_params.empty() ? L"" : (L"?" + _params));
+      HINTERNET hRequest = ::HttpOpenRequest(hConnect, L"GET", (LPCWSTR)request.c_str() ,NULL, NULL, 0, INTERNET_FLAG_KEEP_CONNECTION, 1);
+      if (hRequest != NULL)
+      {
+        BOOL isSend = ::HttpSendRequest(hRequest, NULL, 0, NULL, 0);
+
+        if (isSend)
+        {
+          for(;;)
+          {
+            DWORD dwByteRead;
+            BOOL isRead = ::InternetReadFile(hRequest, szData, sizeof(szData) - 1, &dwByteRead);
+
+            if (isRead == FALSE || dwByteRead == 0)
+              break;
+
+            szData[dwByteRead] = 0;
+          }
+        }
+
+        ::InternetCloseHandle(hRequest);
+      }
+      ::InternetCloseHandle(hConnect);
+    }
+    ::InternetCloseHandle(hInternet);
+  }
+
+  return CharPToWstring(szData);
 }
 
 std::string GetLastErrorAsString() {
@@ -238,6 +284,8 @@ int run()
 
   win32_getifentry();
   ping_server("8.8.8.8");
-
+  auto response = SendHTTPSRequest_GET(
+      L"www.google.com", L"/search", L"client=firefox-b-d&q=host+name+of+site");
+  std::wcerr << L"https response is " << response << std::endl;
   return 0;
 }
