@@ -126,14 +126,25 @@ std::wstring CharPToWstring(const char* _charP)
 std::wstring SendHTTPSRequest_GET(const std::wstring& _server, const std::wstring& _page, const std::wstring& _params = L"")
 {
   char szData[1024];
-  HINTERNET hInternet = ::InternetOpen(TEXT("WinInet Test"), INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, INTERNET_FLAG_SECURE);
+  HINTERNET hInternet = ::InternetOpen(TEXT("WinInet"), INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
   if (hInternet != NULL)
   {
-    HINTERNET hConnect = ::InternetConnect(hInternet, _server.c_str(), INTERNET_DEFAULT_HTTPS_PORT, NULL,NULL, INTERNET_SERVICE_HTTP, 0, 1);
+    HINTERNET hConnect = ::InternetConnect(hInternet, _server.c_str(), INTERNET_DEFAULT_HTTPS_PORT, NULL,NULL, INTERNET_SERVICE_HTTP, 0, NULL);
     if (hConnect != NULL)
     {
       std::wstring request = _page + (_params.empty() ? L"" : (L"?" + _params));
-      HINTERNET hRequest = ::HttpOpenRequest(hConnect, L"GET", (LPCWSTR)request.c_str() ,NULL, NULL, 0, INTERNET_FLAG_KEEP_CONNECTION, 1);
+      auto dwFlags =
+          INTERNET_FLAG_NO_CACHE_WRITE |
+          INTERNET_FLAG_KEEP_CONNECTION |
+          INTERNET_FLAG_PRAGMA_NOCACHE |
+          INTERNET_FLAG_SECURE |
+          INTERNET_FLAG_IGNORE_CERT_CN_INVALID |
+          INTERNET_FLAG_IGNORE_CERT_DATE_INVALID;
+      LPCTSTR AcceptTypes[2] = {TEXT("*/*"), NULL};
+
+      HINTERNET hRequest = ::HttpOpenRequest(hConnect, L"GET",
+          (LPCWSTR)request.c_str(), NULL, NULL, (LPCTSTR*)AcceptTypes, dwFlags, NULL);
+
       if (hRequest != NULL)
       {
         BOOL isSend = ::HttpSendRequest(hRequest, NULL, 0, NULL, 0);
@@ -182,7 +193,7 @@ std::string GetLastErrorAsString() {
   return message;
 }
 
-int run()
+int main()
 {
   HKEY hKey;
   DWORD dwDisposition;
@@ -261,7 +272,8 @@ int run()
         NULL,
         CREATE_ALWAYS,
         FILE_ATTRIBUTE_NORMAL,
-        NULL);
+        NULL
+		);
     if (hFile == INVALID_HANDLE_VALUE) {
       std::wcerr << L"Creation of file " << forbidden_file <<
         " has been canceled by the broker in accordance with FS policy" << std::endl;
@@ -285,7 +297,7 @@ int run()
   win32_getifentry();
   ping_server("8.8.8.8");
   auto response = SendHTTPSRequest_GET(
-      L"www.google.com", L"/search", L"client=firefox-b-d&q=host+name+of+site");
+      L"www.google.com", L"/", L"");
   std::wcerr << L"https response is " << response << std::endl;
   return 0;
 }
