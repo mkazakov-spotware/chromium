@@ -193,7 +193,7 @@ std::string GetLastErrorAsString() {
   return message;
 }
 
-int main()
+int run()
 {
   HKEY hKey;
   DWORD dwDisposition;
