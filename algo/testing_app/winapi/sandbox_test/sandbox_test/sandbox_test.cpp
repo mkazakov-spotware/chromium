@@ -280,7 +280,7 @@ int run()
       CloseHandle(hFile);
     }
     else {
-      std::wcerr << L"File " << file << L" has been created, but it shoudn't be!!!" << std::endl;
+      std::wcerr << L"File " << forbidden_file << L" has been created, but it shoudn't be!!!" << std::endl;
     }
   }
 
