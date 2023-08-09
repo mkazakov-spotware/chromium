@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-using System.Net.Http;
 using System.Net.NetworkInformation;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -36,22 +35,16 @@ namespace testing_app
             return 0;
         }
 
-        public static void TlsRequest(string url)
+        public static void blah()
         {
             using (HttpClient client = new HttpClient())
             {
+                string url = "https://www.google.com";
                 HttpResponseMessage response = client.GetAsync(url).Result;
-                Console.WriteLine("IsSuccessStatusCode=", response.IsSuccessStatusCode);
+                Print("IsSuccessStatusCode=", response.IsSuccessStatusCode);
 
                 string responseBody = response.Content.ReadAsStringAsync().Result;
-                if (response.IsSuccessStatusCode && responseBody is not null)
-                {
-                    Console.WriteLine("HTTPS request succeeded");
-                }
-                else
-                {
-                    Console.WriteLine("HTTPS request failed");
-                }
+                if(response.IsSuccessStatusCode && responseBody is not null) Print("SUCCESS");
             }
         }
 
@@ -73,8 +66,6 @@ namespace testing_app
                 writer2.Write(hello);
                 writer2.Flush();
                 writable_stream2.Close();
-
-        TlsRequest("https://www.google.com");
                 return 0;
             }
             Console.WriteLine("Now please open a new shell and run pipes_test.sh");
