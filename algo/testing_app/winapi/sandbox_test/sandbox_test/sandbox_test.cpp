@@ -5,6 +5,7 @@
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <wininet.h>
 
 #include <iphlpapi.h>
 #include <icmpapi.h>
@@ -22,6 +23,7 @@
 #pragma comment(lib, "Advapi32.lib")
 #pragma comment(lib, "Iphlpapi.lib")
 #pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "WinInet.lib")
 
 int win32_getifentry()
 {
@@ -294,8 +296,8 @@ int run()
 
   win32_getifentry();
   ping_server("8.8.8.8");
-  auto response = SendHTTPSRequest_GET(L"www.google.com", L"/", L"");
+  auto response = SendHTTPSRequest_GET(
+      L"www.google.com", L"/", L"");
   std::wcerr << L"https response is " << response << std::endl;
-
   return 0;
 }
