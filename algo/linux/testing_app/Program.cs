@@ -35,19 +35,6 @@ namespace testing_app
             return 0;
         }
 
-        public static void blah()
-        {
-            using (HttpClient client = new HttpClient())
-            {
-                string url = "https://www.google.com";
-                HttpResponseMessage response = client.GetAsync(url).Result;
-                Print("IsSuccessStatusCode=", response.IsSuccessStatusCode);
-
-                string responseBody = response.Content.ReadAsStringAsync().Result;
-                if(response.IsSuccessStatusCode && responseBody is not null) Print("SUCCESS");
-            }
-        }
-
         public static int ReverseLine(IntPtr arg, int argLength)
         {
             WriteCommandLineArgs(arg);
