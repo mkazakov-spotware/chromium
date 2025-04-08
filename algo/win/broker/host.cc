@@ -28,6 +28,7 @@
 #define REG_RULES "registryRules"
 #define PATTERN "pattern"
 #define RO "readOnly"
+#define PYTHON_DLL_PATH "pythonDllPath"
 #define WIDE_SPACE std::wstring(L" ")
 #define PIPE std::string("|")
 
@@ -126,6 +127,7 @@ int run_broker_main(int argc, wchar_t** argv) {
         const auto pipe_rules = get_value(PIPE_RULES, root);
         const auto event_rules = get_value(EVENT_RULES, root);
         const auto reg_rules = get_value(REG_RULES, root);
+        const auto python_dll_path = get_value(PYTHON_DLL_PATH, root);
         std::wstring quoted_title = L"\"" + title + L"\"";
         const auto cmd = quoted_title + WIDE_SPACE + target + WIDE_SPACE + args;
 
@@ -139,6 +141,7 @@ int run_broker_main(int argc, wchar_t** argv) {
             reg_rules.c_str(),           // reg_rules
             pipe_rules.c_str(),          // np_rules
             event_rules.c_str(),         // ev_rules
+            python_dll_path.c_str()      // python_dll_path
         };
 
         int result = Spawn(options, target_result);
