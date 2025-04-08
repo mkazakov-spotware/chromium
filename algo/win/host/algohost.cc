@@ -60,6 +60,8 @@ const string_t ENDPOINT_CONFIG = read_environment_variable(L"__CT_ALGOHOST_ENDPO
 const string_t ENDPOINT_TYPE = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_TYPE");
 const string_t ENDPOINT_METHOD = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_METHOD");
 const string_t PRELOAD_ENDPOINT_METHOD = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_PRELOAD_METHOD");
+const string_t CONFIGURE_PYTHON_METHOD = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_CONFIGURE_PYTHON_METHOD");
+const string_t PYTHON_DLL_PATH = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH");
 
 extern "C" {
   extern __declspec(dllimport) char g_target_id[1 << 8];
@@ -174,6 +176,30 @@ namespace
       if (!preload(load_assembly_and_get_function_pointer_fn, endpoint_asm_path))
         return ERROR_BAD_DLL_ENTRYPOINT;
 
+      // Configure Python before lowering token privileges if path is provided
+      if (!PYTHON_DLL_PATH.empty()) {
+        LOG(INFO) << "Configuring Python in target process" << std::endl;
+        component_entry_point_fn configure_python_fn = nullptr;
+        if (load_assembly_and_get_function_pointer_fn(
+                endpoint_asm_path,
+                ENDPOINT_TYPE.c_str(),
+                CONFIGURE_PYTHON_METHOD.c_str(),
+                nullptr,
+                nullptr,
+                reinterpret_cast<void**>(&configure_python_fn)) != 0 || configure_python_fn == nullptr) {
+          LOG(ERROR) << "Failed to get ConfigurePython function pointer" << std::endl;
+          return ERROR_BAD_DLL_ENTRYPOINT;
+        }
+
+        // Call ConfigurePython with the Python DLL path
+        int python_result = configure_python_fn(nullptr, 0);
+        if (python_result != 0) {
+          LOG(ERROR) << "Failed to configure Python: " << python_result << std::endl;
+          return ERROR_BAD_ENVIRONMENT;
+        }
+        LOG(INFO) << "Python configured successfully" << std::endl;
+      }
+
       component_entry_point_fn entry_point_fn = nullptr;
       if (load_assembly_and_get_function_pointer_fn(
               endpoint_asm_path,
@@ -184,6 +210,7 @@ namespace
               reinterpret_cast<void**>(&entry_point_fn)) != 0 || entry_point_fn == nullptr)
         return ERROR_BAD_DLL_ENTRYPOINT;
 
+      // Now it's safe to lower token
       if (target_services != nullptr)
           target_services->LowerToken();
       else
@@ -198,6 +225,31 @@ namespace
                               const char_t* endpoint_asm_path,
                               sandbox::TargetServices* target_services)
     {
+      // Configure Python before lowering token privileges if path is provided
+      if (!PYTHON_DLL_PATH.empty()) {
+        LOG(INFO) << "Configuring Python in target process" << std::endl;
+        component_entry_point_fn configure_python_fn = nullptr;
+        if (load_assembly_and_get_function_pointer_fn(
+                endpoint_asm_path,
+                ENDPOINT_TYPE.c_str(),
+                CONFIGURE_PYTHON_METHOD.c_str(),
+                nullptr,
+                nullptr,
+                reinterpret_cast<void**>(&configure_python_fn)) != 0 || configure_python_fn == nullptr) {
+          LOG(ERROR) << "Failed to get ConfigurePython function pointer" << std::endl;
+          return ERROR_BAD_DLL_ENTRYPOINT;
+        }
+
+        // Call ConfigurePython with the Python DLL path
+        int python_result = configure_python_fn(nullptr, 0);
+        if (python_result != 0) {
+          LOG(ERROR) << "Failed to configure Python: " << python_result << std::endl;
+          return ERROR_BAD_ENVIRONMENT;
+        }
+        LOG(INFO) << "Python configured successfully" << std::endl;
+      }
+      
+      // Now it's safe to lower token
       if (target_services != nullptr)
           target_services->LowerToken();
       else
