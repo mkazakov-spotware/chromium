@@ -87,7 +87,7 @@ const std::wstring get_value(const char* key, const absl::optional<base::Value>&
 
 int run_broker_main(int argc, wchar_t** argv) {
     Initialize();
-    LOG(INFO) << "broker" << std::endl;
+    LOG(INFO) << "BROKER" << std::endl;
 
     wchar_t exe[MAX_PATH];
     if (!GetModuleFileNameW(nullptr, exe, MAX_PATH)) {

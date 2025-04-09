@@ -1,6 +1,7 @@
 #include "algo/win/host/algohost.h"
 
 #include <iostream>
+#include "algo/win/broker/algobroker.h"
 
 #include <tchar.h>
 #include <windows.h>
@@ -74,8 +75,10 @@ void set_target(int argc, wchar_t** argv) {
 
 int host_main(int argc, wchar_t* argv[])
 {
+  InitializeChildProcessLogging();
+
   set_target(argc, argv);
-  LOG(INFO) << "host" << std::endl;
+  LOG(INFO) << "HOST" << std::endl;
   warmup();
 
   SetEnvironmentVariable(L"DOTNET_gcServer", L"1");

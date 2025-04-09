@@ -43,34 +43,41 @@ bool InitializeLogging() {
   return logging::InitLogging(settings);
 }
 
-// Initialize logging for a child target process
-bool InitializeChildProcessLogging(const wchar_t* prefix, DWORD process_id) {
-  // Generate log filename with prefix, process ID and timestamp
-  std::wstring log_filename = L"";
+// Define environment variable name for target log file
+#define ENV_TARGET_LOG_FILE L"ALGO_TARGET_LOG_FILE"
+
+// Generate log filename for a child target process
+std::wstring GenerateTargetLogFilename() {
+  return L"target_" + GetCurrentDateTimeString() + L".log";
+}
+
+// Initialize logging for a child target process - reads log filename from environment variable
+bool InitializeChildProcessLogging() {
+  // Read log filename from environment variable
+  wchar_t buffer[MAX_PATH];
+  DWORD result = GetEnvironmentVariable(ENV_TARGET_LOG_FILE, buffer, MAX_PATH);
   
-  if (prefix && wcslen(prefix) > 0) {
-    // Extract the base name without path or extension
-    std::wstring prefix_str(prefix);
-    size_t last_slash = prefix_str.find_last_of(L"\\/");
-    if (last_slash != std::wstring::npos) {
-      prefix_str = prefix_str.substr(last_slash + 1);
-    }
-    size_t dot = prefix_str.find_last_of(L'.');
-    if (dot != std::wstring::npos) {
-      prefix_str = prefix_str.substr(0, dot);
-    }
+  if (result == 0 || result >= MAX_PATH) {
+    // Environment variable not set or too long, use default naming
+    std::wstring log_filename = GenerateTargetLogFilename();
     
-    log_filename += prefix_str + L"_";
+    logging::LoggingSettings settings;
+    settings.logging_dest = logging::LOG_TO_FILE | logging::LOG_TO_STDERR;
+    settings.log_file_path = log_filename.c_str();
+    
+    LOG(INFO) << L"Initializing child process logging to (default): " << log_filename.c_str();
+    
+    return logging::InitLogging(settings);
   }
   
-  // Add process ID and timestamp to the filename
-  log_filename += L"proc_" + std::to_wstring(process_id) + L"_" + GetCurrentDateTimeString() + L".log";
+  // Use log filename from environment variable
+  std::wstring log_filename(buffer);
   
   logging::LoggingSettings settings;
   settings.logging_dest = logging::LOG_TO_FILE | logging::LOG_TO_STDERR;
   settings.log_file_path = log_filename.c_str();
   
-  LOG(INFO) << L"Initializing child process logging to: " << log_filename.c_str();
+  LOG(INFO) << L"Initializing child process logging to (from env): " << log_filename.c_str();
   
   return logging::InitLogging(settings);
 }
@@ -389,7 +396,34 @@ int Spawn(const algo::TargetOptions* options,
       break;
     }
 
-    result_code = SetupFileRules(target_policy, options->fs_rules);
+    // Set the log filename with full path as an environment variable for the target process
+    wchar_t log_dir[MAX_PATH];
+    if (GetCurrentDirectory(MAX_PATH, log_dir) == 0) {
+      LOG(ERROR) << "Failed to get current directory for log file path";
+      // Can't break here since we're not in a loop, just continue with best effort
+    }
+
+    // Construct the full log path with proper directory separator
+    std::wstring log_dir_path(log_dir);
+    if (log_dir_path.back() != L'\\') {
+      log_dir_path += L"\\";
+    }
+    std::wstring full_log_path = log_dir_path + GenerateTargetLogFilename();
+    SetEnvironmentVariable(ENV_TARGET_LOG_FILE, full_log_path.c_str());
+    LOG(INFO) << "Set target log filename: " << full_log_path.c_str();
+
+    // Add log directory path to filesystem rules - allow writing to entire directory
+    std::wstring modified_fs_rules;
+    if (options->fs_rules && wcslen(options->fs_rules) > 0) {
+      modified_fs_rules = std::wstring(options->fs_rules) + L"|" + full_log_path + L"|RW";
+    } else {
+      modified_fs_rules = full_log_path + L"|RW";
+    }
+    
+    LOG(INFO) << L"Added log directory to filesystem rules: " << full_log_path.c_str();
+    
+    // Use the modified rules
+    result_code = SetupFileRules(target_policy, modified_fs_rules.c_str());
     if (result_code != SBOX_ALL_OK) {
       break;
     }
@@ -426,9 +460,7 @@ int Spawn(const algo::TargetOptions* options,
     target_information->thread_handle = process_information.hThread;
     target_information->process_id = process_information.dwProcessId;
     target_information->thread_id = process_information.dwThreadId;
-    
-    // Initialize logging for the new child process
-    InitializeChildProcessLogging(options->host_path, process_information.dwProcessId);
+
     LOG(INFO) << "Spawned child process with ID: " << process_information.dwProcessId;
   }
 
