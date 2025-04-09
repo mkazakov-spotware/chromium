@@ -2,9 +2,13 @@
 #include <shlwapi.h>
 #include <aclapi.h>
 #include <iostream>
+#include <string>
+#include <ctime>
 
 #include "algo/win/broker/algobroker.h"
 #include "base/logging.h"
+#include "base/files/file_path.h"
+#include "base/strings/string_number_conversions.h"
 #include "sandbox/policy/win/sandbox_win.h"
 #include "sandbox/win/src/app_container_base.h"
 #include "sandbox/win/src/restricted_token_utils.h"
@@ -14,6 +18,62 @@
 #include "sandbox/win/src/security_level.h"
 
 using namespace sandbox;
+
+// Get current datetime as a string in format YYYYMMDD_HHMMSS
+std::wstring GetCurrentDateTimeString() {
+  time_t now = time(nullptr);
+  struct tm timeinfo;
+  localtime_s(&timeinfo, &now);
+  
+  wchar_t buffer[20];
+  wcsftime(buffer, 20, L"%Y%m%d_%H%M%S", &timeinfo);
+  
+  return std::wstring(buffer);
+}
+
+// Initialize logging to file for the broker process
+bool InitializeLogging() {
+  // Generate log filename with timestamp
+  std::wstring log_filename = L"broker_" + GetCurrentDateTimeString() + L".log";
+  
+  logging::LoggingSettings settings;
+  settings.logging_dest = logging::LOG_TO_FILE | logging::LOG_TO_STDERR;
+  settings.log_file_path = log_filename.c_str();
+  
+  return logging::InitLogging(settings);
+}
+
+// Initialize logging for a child target process
+bool InitializeChildProcessLogging(const wchar_t* prefix, DWORD process_id) {
+  // Generate log filename with prefix, process ID and timestamp
+  std::wstring log_filename = L"";
+  
+  if (prefix && wcslen(prefix) > 0) {
+    // Extract the base name without path or extension
+    std::wstring prefix_str(prefix);
+    size_t last_slash = prefix_str.find_last_of(L"\\/");
+    if (last_slash != std::wstring::npos) {
+      prefix_str = prefix_str.substr(last_slash + 1);
+    }
+    size_t dot = prefix_str.find_last_of(L'.');
+    if (dot != std::wstring::npos) {
+      prefix_str = prefix_str.substr(0, dot);
+    }
+    
+    log_filename += prefix_str + L"_";
+  }
+  
+  // Add process ID and timestamp to the filename
+  log_filename += L"proc_" + std::to_wstring(process_id) + L"_" + GetCurrentDateTimeString() + L".log";
+  
+  logging::LoggingSettings settings;
+  settings.logging_dest = logging::LOG_TO_FILE | logging::LOG_TO_STDERR;
+  settings.log_file_path = log_filename.c_str();
+  
+  LOG(INFO) << L"Initializing child process logging to: " << log_filename.c_str();
+  
+  return logging::InitLogging(settings);
+}
 
 ResultCode SetupProtectedMode(
   BrokerServices* broker,
@@ -292,12 +352,18 @@ ResultCode SetupNamedPipeRules(std::unique_ptr<TargetPolicy>& target_policy,
 }
 
 bool Initialize() {
-
+  // Initialize broker logging first
+  if (!InitializeLogging()) {
+    std::cerr << "Failed to initialize logging" << std::endl;
+  }
+  
   LOG(INFO) << L"Broker Services initialize." << std::endl;
   BrokerServices* broker_services = SandboxFactory::GetBrokerServices();
 
-  if (broker_services == nullptr)
+  if (broker_services == nullptr) {
+    LOG(ERROR) << "Failed to get broker services";
     return false;
+  }
 
   LoadLibrary(L"userenv");
 
@@ -360,6 +426,10 @@ int Spawn(const algo::TargetOptions* options,
     target_information->thread_handle = process_information.hThread;
     target_information->process_id = process_information.dwProcessId;
     target_information->thread_id = process_information.dwThreadId;
+    
+    // Initialize logging for the new child process
+    InitializeChildProcessLogging(options->host_path, process_information.dwProcessId);
+    LOG(INFO) << "Spawned child process with ID: " << process_information.dwProcessId;
   }
 
   return result_code;
