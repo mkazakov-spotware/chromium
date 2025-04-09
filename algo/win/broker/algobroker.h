@@ -35,6 +35,8 @@ struct TargetInitializeOptions {
 extern "C" {
 ALGO_BROKER_API bool Initialize();
 
+ALGO_BROKER_API bool InitializeChildProcessLogging();
+
 ALGO_BROKER_API int Spawn(const algo::TargetOptions* options,
                           algo::TargetInformation* target_information);
 
