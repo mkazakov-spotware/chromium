@@ -32,13 +32,30 @@ std::wstring GetCurrentDateTimeString() {
 }
 
 // Initialize logging to file for the broker process
+// Define environment variable name for file logging control
+#define ENV_ENABLE_FILE_LOGGING L"ALGO_ENABLE_FILE_LOGGING"
+
 bool InitializeLogging() {
+  // Check environment variable to determine if file logging is enabled
+  wchar_t buffer[MAX_PATH];
+  DWORD result = GetEnvironmentVariable(ENV_ENABLE_FILE_LOGGING, buffer, MAX_PATH);
+  bool enable_file_logging = false;
+  
+  if (result > 0 && result < MAX_PATH) {
+    std::wstring value(buffer);
+    enable_file_logging = (value == L"True");
+  }
+  
   // Generate log filename with timestamp
   std::wstring log_filename = L"broker_" + GetCurrentDateTimeString() + L".log";
   
   logging::LoggingSettings settings;
-  settings.logging_dest = logging::LOG_TO_FILE | logging::LOG_TO_STDERR;
-  settings.log_file_path = log_filename.c_str();
+  settings.logging_dest = logging::LOG_TO_STDERR; // Always log to stderr
+  
+  if (enable_file_logging) {
+    settings.logging_dest |= logging::LOG_TO_FILE; // Add file logging if enabled
+    settings.log_file_path = log_filename.c_str();
+  }
   
   return logging::InitLogging(settings);
 }
@@ -53,9 +70,25 @@ std::wstring GenerateTargetLogFilename() {
 
 // Initialize logging for a child target process - reads log filename from environment variable
 bool InitializeChildProcessLogging() {
-  // Read log filename from environment variable
+  // Check environment variable to determine if file logging is enabled
   wchar_t buffer[MAX_PATH];
-  DWORD result = GetEnvironmentVariable(ENV_TARGET_LOG_FILE, buffer, MAX_PATH);
+  DWORD result = GetEnvironmentVariable(ENV_ENABLE_FILE_LOGGING, buffer, MAX_PATH);
+  bool enable_file_logging = false;
+  
+  if (result > 0 && result < MAX_PATH) {
+    std::wstring value(buffer);
+    enable_file_logging = (value == L"True");
+  }
+  
+  if (!enable_file_logging) {
+    // File logging disabled, only use stderr
+    logging::LoggingSettings settings;
+    settings.logging_dest = logging::LOG_TO_STDERR;
+    return logging::InitLogging(settings);
+  }
+  
+  // Read log filename from environment variable
+  result = GetEnvironmentVariable(ENV_TARGET_LOG_FILE, buffer, MAX_PATH);
   
   if (result == 0 || result >= MAX_PATH) {
     // Environment variable not set or too long, use default naming
