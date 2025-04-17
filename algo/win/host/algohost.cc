@@ -177,7 +177,9 @@ namespace
       else
           LOG(INFO) << "There are no target services!!!" << std::endl;
 
-      return entry_point_fn(nullptr, 0);
+      int result = entry_point_fn(nullptr, 0);
+      LOG(INFO) << "entry_point_fn(nullptr, 0) call result: " << result << std::endl;
+      return result;
     }
 
     int start_without_preload(load_assembly_and_get_function_pointer_fn load_assembly_and_get_function_pointer_fn,
@@ -198,7 +200,9 @@ namespace
               reinterpret_cast<void**>(&entry_point_fn)) != 0 || entry_point_fn == nullptr)
         return ERROR_BAD_DLL_ENTRYPOINT;
 
-      return entry_point_fn(nullptr, 0);
+      int result = entry_point_fn(nullptr, 0);
+      LOG(INFO) << "entry_point_fn(nullptr, 0) call result: " << result << std::endl;
+      return result;
     }
 
     bool preload(load_assembly_and_get_function_pointer_fn
