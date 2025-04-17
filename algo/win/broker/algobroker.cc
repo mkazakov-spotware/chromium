@@ -61,9 +61,17 @@ bool InitializeLogging() {
 // Define environment variable name for target log file
 #define ENV_TARGET_LOG_FILE L"ALGO_TARGET_LOG_FILE"
 
+// Define environment variable name for .NET desktop log file
+#define ENV_DESKTOP_LOG_FILE L"ALGO_DESKTOP_LOG_FILE"
+
 // Generate log filename for a child target process
 std::wstring GenerateTargetLogFilename() {
   return L"target_" + GetCurrentDateTimeString() + L".log";
+}
+
+// Generate log filename for managed .NET desktop app
+std::wstring GenerateDesktopLogFilename() {
+  return L"desktop_" + GetCurrentDateTimeString() + L".log";
 }
 
 // Initialize logging for a child target process - reads log filename from environment variable
@@ -87,7 +95,6 @@ bool InitializeChildProcessLogging() {
   
   // Read log filename from environment variable
   result = GetEnvironmentVariable(ENV_TARGET_LOG_FILE, buffer, MAX_PATH);
-  
   if (result == 0 || result >= MAX_PATH) {
     // Environment variable not set or too long, use default naming
     std::wstring log_filename = GenerateTargetLogFilename();
@@ -95,7 +102,7 @@ bool InitializeChildProcessLogging() {
     logging::LoggingSettings settings;
     settings.logging_dest = logging::LOG_TO_FILE | logging::LOG_TO_STDERR;
     settings.log_file_path = log_filename.c_str();
-    
+
     LOG(INFO) << L"Initializing child process logging to (default): " << log_filename.c_str();
     
     return logging::InitLogging(settings);
@@ -353,8 +360,7 @@ ResultCode SetupNamedPipeRules(scoped_refptr<TargetPolicy> target_policy,
     if (result != SBOX_ALL_OK)
       break;
 
-    LOG(INFO) << L"Rule [NamedPipeSystem] added: " << rule.c_str() << std::
-        endl;
+    LOG(INFO) << L"Rule [NamedPipeSystem] added: " << rule.c_str() << std::endl;
   }
 
   return result;
@@ -415,15 +421,20 @@ int Spawn(const algo::TargetOptions* options,
     SetEnvironmentVariable(ENV_TARGET_LOG_FILE, full_log_path.c_str());
     LOG(INFO) << "Set target log filename: " << full_log_path.c_str();
 
+    // Create a desktop log file for managed .NET app
+    std::wstring desktop_log_path = log_dir_path + GenerateDesktopLogFilename();
+    SetEnvironmentVariable(ENV_DESKTOP_LOG_FILE, desktop_log_path.c_str());
+    LOG(INFO) << "Set desktop log filename: " << desktop_log_path.c_str();
+
     // Add log directory path to filesystem rules - allow writing to entire directory
     std::wstring modified_fs_rules;
     if (options->fs_rules && wcslen(options->fs_rules) > 0) {
-      modified_fs_rules = std::wstring(options->fs_rules) + L"|" + full_log_path + L"|RW";
+      modified_fs_rules = std::wstring(options->fs_rules) + L"|" + full_log_path + L"|RW" + L"|" + desktop_log_path + L"|RW";
     } else {
-      modified_fs_rules = full_log_path + L"|RW";
+      modified_fs_rules = full_log_path + L"|RW" + L"|" + desktop_log_path + L"|RW";
     }
     
-    LOG(INFO) << L"Added log directory to filesystem rules: " << full_log_path.c_str();
+    LOG(INFO) << L"Added log files to filesystem rules: " << full_log_path.c_str() << L", " << desktop_log_path.c_str();
     
     // Use the modified rules
     result_code = SetupFileRules(target_policy, modified_fs_rules.c_str());

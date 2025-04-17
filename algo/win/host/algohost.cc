@@ -19,6 +19,8 @@
 
 #define HOSTFXR_LIB L"hostfxr.dll"
 
+#define ENV_DESKTOP_LOG_FILE L"ALGO_DESKTOP_LOG_FILE"
+
 using string_t = std::basic_string<char_t>;
 
 namespace
@@ -83,6 +85,16 @@ int host_main(int argc, wchar_t* argv[])
   SetEnvironmentVariable(L"DOTNET_gcConcurrent", L"1");
   SetEnvironmentVariable(L"DOTNET_GCCpuGroup", L"1");
   SetEnvironmentVariable(L"DOTNET_Thread_UseAllCpuGroups", L"1");
+
+  // Read desktop log file path from environment variable and pass it to .NET app
+  wchar_t desktop_log_path[MAX_PATH];
+  if (GetEnvironmentVariable(ENV_DESKTOP_LOG_FILE, desktop_log_path, MAX_PATH) > 0) {
+    LOG(INFO) << "Using desktop log file: " << desktop_log_path << std::endl;
+    // Set environment variable for .NET app to use
+    SetEnvironmentVariable(L"__CT_ALGOHOST_DESKTOP_LOG_FILE", desktop_log_path);
+  } else {
+    LOG(WARNING) << "Desktop log file path not found in environment variables" << std::endl;
+  }
 
   sandbox::TargetServices* target_services = sandbox::SandboxFactory::GetTargetServices();
 
