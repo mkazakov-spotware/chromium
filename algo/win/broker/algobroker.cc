@@ -457,13 +457,6 @@ int Spawn(const algo::TargetOptions* options,
       break;
     }
 
-    // Set Python environment variables for the target process if Python DLL path is provided
-    if (options->python_dll_path && wcslen(options->python_dll_path) > 0) {
-      LOG(INFO) << "Setting Python environment variables for target process: " << options->python_dll_path << std::endl;
-      // Set the Python DLL path for the target process
-      SetEnvironmentVariable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH", options->python_dll_path);
-    }
-
     result_code = SpawnTarget(options->host_path,
                               options->command_line,
                               options->current_directory,
