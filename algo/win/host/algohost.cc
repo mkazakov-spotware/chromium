@@ -60,6 +60,7 @@ const string_t ENDPOINT_CONFIG = read_environment_variable(L"__CT_ALGOHOST_ENDPO
 const string_t ENDPOINT_TYPE = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_TYPE");
 const string_t ENDPOINT_METHOD = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_METHOD");
 const string_t PRELOAD_ENDPOINT_METHOD = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_PRELOAD_METHOD");
+const string_t PYTHON_DLL_PATH = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH");
 
 extern "C" char g_target_id[1 << 8];
 
@@ -86,6 +87,14 @@ int host_main(int argc, wchar_t* argv[])
   SetEnvironmentVariable(L"DOTNET_GCCpuGroup", L"1");
   SetEnvironmentVariable(L"DOTNET_Thread_UseAllCpuGroups", L"1");
 
+  // Add Python DLL path environment variable if it exists
+  if (!PYTHON_DLL_PATH.empty()) {
+    LOG(INFO) << L"Setting Python DLL path: " << PYTHON_DLL_PATH.c_str() << std::endl;
+    SetEnvironmentVariable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH", PYTHON_DLL_PATH.c_str());
+  } else {
+    LOG(INFO) << L"Python DLL path not found in environment variables" << std::endl;
+  }
+
   // Read desktop log file path from environment variable and pass it to .NET app
   wchar_t desktop_log_path[MAX_PATH];
   if (GetEnvironmentVariable(ENV_DESKTOP_LOG_FILE, desktop_log_path, MAX_PATH) > 0) {
@@ -93,7 +102,7 @@ int host_main(int argc, wchar_t* argv[])
     // Set environment variable for .NET app to use
     SetEnvironmentVariable(L"__CT_ALGOHOST_DESKTOP_LOG_FILE", desktop_log_path);
   } else {
-    LOG(WARNING) << "Desktop log file path not found in environment variables" << std::endl;
+    LOG(INFO) << "Desktop log file path not found in environment variables" << std::endl;
   }
 
   sandbox::TargetServices* target_services = sandbox::SandboxFactory::GetTargetServices();
