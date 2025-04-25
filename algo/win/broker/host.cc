@@ -37,6 +37,19 @@ int run_broker_main(int argc, wchar_t** argv);
 int _tmain(int argc, wchar_t* argv[]) {
 //  Sleep(10 * 1000);
     Sleep(1 * 1000);
+
+    // Check for Python DLL path
+    wchar_t python_dll_path[MAX_PATH] = {0};
+    DWORD path_length = GetEnvironmentVariable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH",
+                                             python_dll_path, MAX_PATH);
+    if (path_length > 0) {
+      LOG(INFO) << "Using Python DLL path: " << python_dll_path;
+      // Re-set it to ensure it's available to the .NET process
+      SetEnvironmentVariable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH", python_dll_path);
+    } else {
+      LOG(INFO) << "No Python DLL path found in environment";
+    }
+
     if (argc > 1) {
         return host_main(argc, argv);
     }
@@ -128,6 +141,7 @@ int run_broker_main(int argc, wchar_t** argv) {
         const auto pipe_rules = get_value(PIPE_RULES, root);
         const auto event_rules = get_value(EVENT_RULES, root);
         const auto reg_rules = get_value(REG_RULES, root);
+        const auto python_dll_path = get_value("pythonDllPath", root);
         const auto cmd = quoted_title + WIDE_SPACE + target + WIDE_SPACE + args;
 
         algo::TargetInformation* target_result = new algo::TargetInformation;
@@ -140,6 +154,7 @@ int run_broker_main(int argc, wchar_t** argv) {
             reg_rules.c_str(),           // reg_rules
             pipe_rules.c_str(),          // np_rules
             event_rules.c_str(),         // ev_rules
+            python_dll_path.c_str(),     // python_dll_path
         };
 
         int result = Spawn(options, target_result);

@@ -125,7 +125,8 @@ bool InitializeChildProcessLogging() {
 ResultCode SetupProtectedMode(
   BrokerServices* broker,
   const std::unique_ptr<TargetPolicy>& target_policy,
-  const wchar_t* package_name) {
+  const wchar_t* package_name,
+  const wchar_t* python_dll_path = nullptr) {
   ResultCode result;
 
   // If stdout/stderr point to a Windows console, these calls will
@@ -136,8 +137,18 @@ ResultCode SetupProtectedMode(
   auto* config = target_policy->GetConfig();
 
   do {
+    // Determine token level based on whether Python DLL path is specified
+    TokenLevel tokenLevel = TokenLevel::USER_LOCKDOWN;
+    if (python_dll_path && wcslen(python_dll_path) > 0) {
+      LOG(INFO) << L"Python DLL path specified, using USER_LIMITED token level";
+      tokenLevel = TokenLevel::USER_LIMITED;
+    } else {
+      LOG(INFO) << L"No Python DLL path specified, using USER_LOCKDOWN token level";
+      tokenLevel = TokenLevel::USER_LOCKDOWN;
+    }
+
     result = config->SetTokenLevel(
-      USER_RESTRICTED_SAME_ACCESS, TokenLevel::USER_LOCKDOWN);
+      USER_RESTRICTED_SAME_ACCESS, tokenLevel);
     if (result != SBOX_ALL_OK)
       break;
 
@@ -430,9 +441,28 @@ int Spawn(const algo::TargetOptions* options,
 
     std::unique_ptr<TargetPolicy> target_policy = broker_services->CreatePolicy();
 
-    result_code = SetupProtectedMode(broker_services, target_policy, options->package_name);
+    result_code = SetupProtectedMode(broker_services, target_policy, options->package_name, options->python_dll_path);
     if (result_code != SBOX_ALL_OK) {
       break;
+    }
+
+    // Check if Python DLL path is provided in the options
+    if (options->python_dll_path && wcslen(options->python_dll_path) > 0) {
+      LOG(INFO) << "Setting Python DLL path from config: " << options->python_dll_path;
+      // Set the environment variable for the target process
+      SetEnvironmentVariable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH", options->python_dll_path);
+    } else {
+      // Fallback to checking environment variable
+      wchar_t python_dll_path[MAX_PATH] = {0};
+      DWORD path_length = GetEnvironmentVariable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH",
+                                               python_dll_path, MAX_PATH);
+      if (path_length > 0) {
+        LOG(INFO) << "Using Python DLL path from environment: " << python_dll_path;
+        // Ensure it's available for the target process
+        SetEnvironmentVariable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH", python_dll_path);
+      } else {
+        LOG(INFO) << "No Python DLL path found in config or environment";
+      }
     }
 
     // Set the log filename with full path as an environment variable for the target process
