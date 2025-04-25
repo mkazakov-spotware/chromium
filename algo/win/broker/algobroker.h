@@ -18,7 +18,6 @@ struct TargetOptions {
   const wchar_t* reg_rules;
   const wchar_t* np_rules;
   const wchar_t* ev_rules;
-  const wchar_t* python_dll_path;
 };
 
 struct TargetInformation {
