@@ -130,8 +130,16 @@ def FetchGitRevision(directory, commit_filter, start_commit="HEAD"):
 
   git_args.append(start_commit)
 
-  output = _RunGitCommand(directory, git_args)
-  hash_, commit_timestamp = output.split()
+  try:
+    output = _RunGitCommand(directory, git_args)
+    hash_, commit_timestamp = output.split()
+  except (GitError, ValueError):
+    # If the grep filter fails to find any commits, try again without the filter
+    if commit_filter is not None:
+      logging.warning('Failed to find commits with filter: %s, trying without filter', commit_filter)
+      git_args = ['log', '-1', '--format=%H %ct', start_commit]
+      output = _RunGitCommand(directory, git_args)
+      hash_, commit_timestamp = output.split()
   if not hash_:
     return VersionInfo('0', '0', 0)
 

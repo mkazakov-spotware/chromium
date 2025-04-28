@@ -18,6 +18,7 @@ struct TargetOptions {
   const wchar_t* reg_rules;
   const wchar_t* np_rules;
   const wchar_t* ev_rules;
+  const wchar_t* python_dll_path;
 };
 
 struct TargetInformation {
@@ -34,6 +35,8 @@ struct TargetInitializeOptions {
 
 extern "C" {
 ALGO_BROKER_API bool Initialize();
+
+ALGO_BROKER_API bool InitializeChildProcessLogging();
 
 ALGO_BROKER_API int Spawn(const algo::TargetOptions* options,
                           algo::TargetInformation* target_information);
