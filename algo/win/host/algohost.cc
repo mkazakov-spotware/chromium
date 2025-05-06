@@ -58,9 +58,7 @@ const string_t ENDPOINT_TYPE = read_environment_variable(L"__CT_ALGOHOST_ENDPOIN
 const string_t ENDPOINT_METHOD = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_METHOD");
 const string_t PRELOAD_ENDPOINT_METHOD = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_PRELOAD_METHOD");
 
-extern "C" {
-  extern __declspec(dllimport) char g_target_id[1 << 8];
-}
+extern "C" char g_target_id[1 << 8];
 
 void set_target(int argc, wchar_t** argv) {
   if (argc < 2) {
