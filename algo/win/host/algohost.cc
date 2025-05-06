@@ -1,6 +1,7 @@
 #include "algo/win/host/algohost.h"
 
 #include <iostream>
+#include "algo/win/broker/algobroker.h"
 
 #include <tchar.h>
 #include <windows.h>
@@ -17,6 +18,8 @@
 #define PATH_DELIMITER L"\\"
 
 #define HOSTFXR_LIB L"hostfxr.dll"
+
+#define ENV_DESKTOP_LOG_FILE L"ALGO_DESKTOP_LOG_FILE"
 
 using string_t = std::basic_string<char_t>;
 
@@ -57,10 +60,9 @@ const string_t ENDPOINT_CONFIG = read_environment_variable(L"__CT_ALGOHOST_ENDPO
 const string_t ENDPOINT_TYPE = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_TYPE");
 const string_t ENDPOINT_METHOD = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_METHOD");
 const string_t PRELOAD_ENDPOINT_METHOD = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_PRELOAD_METHOD");
+const string_t PYTHON_DLL_PATH = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH");
 
-extern "C" {
-  extern __declspec(dllimport) char g_target_id[1 << 8];
-}
+extern "C" char g_target_id[1 << 8];
 
 void set_target(int argc, wchar_t** argv) {
   if (argc < 2) {
@@ -74,14 +76,34 @@ void set_target(int argc, wchar_t** argv) {
 
 int host_main(int argc, wchar_t* argv[])
 {
+  InitializeChildProcessLogging();
+
   set_target(argc, argv);
-  LOG(INFO) << "host" << std::endl;
+  LOG(INFO) << "HOST" << std::endl;
   warmup();
 
   SetEnvironmentVariable(L"DOTNET_gcServer", L"1");
   SetEnvironmentVariable(L"DOTNET_gcConcurrent", L"1");
   SetEnvironmentVariable(L"DOTNET_GCCpuGroup", L"1");
   SetEnvironmentVariable(L"DOTNET_Thread_UseAllCpuGroups", L"1");
+
+  // Add Python DLL path environment variable if it exists
+  if (!PYTHON_DLL_PATH.empty()) {
+    LOG(INFO) << L"Setting Python DLL path: " << PYTHON_DLL_PATH.c_str() << std::endl;
+    SetEnvironmentVariable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH", PYTHON_DLL_PATH.c_str());
+  } else {
+    LOG(INFO) << L"Python DLL path not found in environment variables" << std::endl;
+  }
+
+  // Read desktop log file path from environment variable and pass it to .NET app
+  wchar_t desktop_log_path[MAX_PATH];
+  if (GetEnvironmentVariable(ENV_DESKTOP_LOG_FILE, desktop_log_path, MAX_PATH) > 0) {
+    LOG(INFO) << "Using desktop log file: " << desktop_log_path << std::endl;
+    // Set environment variable for .NET app to use
+    SetEnvironmentVariable(L"__CT_ALGOHOST_DESKTOP_LOG_FILE", desktop_log_path);
+  } else {
+    LOG(INFO) << "Desktop log file path not found in environment variables" << std::endl;
+  }
 
   sandbox::TargetServices* target_services = sandbox::SandboxFactory::GetTargetServices();
 
@@ -172,7 +194,9 @@ namespace
       else
           LOG(INFO) << "There are no target services!!!" << std::endl;
 
-      return entry_point_fn(nullptr, 0);
+      int result = entry_point_fn(nullptr, 0);
+      LOG(INFO) << "entry_point_fn(nullptr, 0) call result: " << result << std::endl;
+      return result;
     }
 
     int start_without_preload(load_assembly_and_get_function_pointer_fn load_assembly_and_get_function_pointer_fn,
@@ -193,7 +217,9 @@ namespace
               reinterpret_cast<void**>(&entry_point_fn)) != 0 || entry_point_fn == nullptr)
         return ERROR_BAD_DLL_ENTRYPOINT;
 
-      return entry_point_fn(nullptr, 0);
+      int result = entry_point_fn(nullptr, 0);
+      LOG(INFO) << "entry_point_fn(nullptr, 0) call result: " << result << std::endl;
+      return result;
     }
 
     bool preload(load_assembly_and_get_function_pointer_fn

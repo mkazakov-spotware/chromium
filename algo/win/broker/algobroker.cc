@@ -2,9 +2,13 @@
 #include <shlwapi.h>
 #include <aclapi.h>
 #include <iostream>
+#include <string>
+#include <ctime>
 
 #include "algo/win/broker/algobroker.h"
 #include "base/logging.h"
+#include "base/files/file_path.h"
+#include "base/strings/string_number_conversions.h"
 #include "sandbox/win/src/sandbox.h"
 #include "sandbox/win/src/sandbox_factory.h"
 #include "sandbox/win/src/app_container_profile.h"
@@ -13,9 +17,113 @@
 
 using namespace sandbox;
 
+// Get current datetime as a string in format YYYYMMDD_HHMMSS
+std::wstring GetCurrentDateTimeString() {
+  time_t now = time(nullptr);
+  struct tm timeinfo;
+  localtime_s(&timeinfo, &now);
+  
+  wchar_t buffer[20];
+  wcsftime(buffer, 20, L"%Y%m%d_%H%M%S", &timeinfo);
+  
+  return std::wstring(buffer);
+}
+
+// Initialize logging to file for the broker process
+// Define environment variable name for file logging control
+#define ENV_ENABLE_FILE_LOGGING L"ALGO_ENABLE_FILE_LOGGING"
+
+bool InitializeLogging() {
+  // Check environment variable to determine if file logging is enabled
+  wchar_t buffer[MAX_PATH];
+  DWORD result = GetEnvironmentVariable(ENV_ENABLE_FILE_LOGGING, buffer, MAX_PATH);
+  bool enable_file_logging = false;
+  
+  if (result > 0 && result < MAX_PATH) {
+    std::wstring value(buffer);
+    enable_file_logging = (value == L"True");
+  }
+  
+  // Generate log filename with timestamp
+  std::wstring log_filename = L"broker_" + GetCurrentDateTimeString() + L".log";
+  
+  logging::LoggingSettings settings;
+  settings.logging_dest = logging::LOG_TO_STDERR; // Always log to stderr
+  
+  if (enable_file_logging) {
+    settings.logging_dest |= logging::LOG_TO_FILE; // Add file logging if enabled
+    settings.log_file_path = log_filename.c_str();
+  }
+  
+  return logging::InitLogging(settings);
+}
+
+// Define environment variable name for target log file
+#define ENV_TARGET_LOG_FILE L"ALGO_TARGET_LOG_FILE"
+
+// Define environment variable name for .NET desktop log file
+#define ENV_DESKTOP_LOG_FILE L"ALGO_DESKTOP_LOG_FILE"
+
+// Generate log filename for a child target process
+std::wstring GenerateTargetLogFilename() {
+  return L"target_" + GetCurrentDateTimeString() + L".log";
+}
+
+// Generate log filename for managed .NET desktop app
+std::wstring GenerateDesktopLogFilename() {
+  return L"desktop_" + GetCurrentDateTimeString() + L".log";
+}
+
+// Initialize logging for a child target process - reads log filename from environment variable
+bool InitializeChildProcessLogging() {
+  // Check environment variable to determine if file logging is enabled
+  wchar_t buffer[MAX_PATH];
+  DWORD result = GetEnvironmentVariable(ENV_ENABLE_FILE_LOGGING, buffer, MAX_PATH);
+  bool enable_file_logging = false;
+  
+  if (result > 0 && result < MAX_PATH) {
+    std::wstring value(buffer);
+    enable_file_logging = (value == L"True");
+  }
+  
+  if (!enable_file_logging) {
+    // File logging disabled, only use stderr
+    logging::LoggingSettings settings;
+    settings.logging_dest = logging::LOG_TO_STDERR;
+    return logging::InitLogging(settings);
+  }
+  
+  // Read log filename from environment variable
+  result = GetEnvironmentVariable(ENV_TARGET_LOG_FILE, buffer, MAX_PATH);
+  if (result == 0 || result >= MAX_PATH) {
+    // Environment variable not set or too long, use default naming
+    std::wstring log_filename = GenerateTargetLogFilename();
+    
+    logging::LoggingSettings settings;
+    settings.logging_dest = logging::LOG_TO_FILE | logging::LOG_TO_STDERR;
+    settings.log_file_path = log_filename.c_str();
+
+    LOG(INFO) << L"Initializing child process logging to (default): " << log_filename.c_str();
+    
+    return logging::InitLogging(settings);
+  }
+  
+  // Use log filename from environment variable
+  std::wstring log_filename(buffer);
+  
+  logging::LoggingSettings settings;
+  settings.logging_dest = logging::LOG_TO_FILE | logging::LOG_TO_STDERR;
+  settings.log_file_path = log_filename.c_str();
+  
+  LOG(INFO) << L"Initializing child process logging to (from env): " << log_filename.c_str();
+  
+  return logging::InitLogging(settings);
+}
+
 ResultCode SetupProtectedMode(
   const scoped_refptr<TargetPolicy>& target_policy,
-  const wchar_t* package_name) {
+  const wchar_t* package_name,
+  const wchar_t* python_dll_path = nullptr) {
   ResultCode result;
 
   // If stdout/stderr point to a Windows console, these calls will
@@ -24,8 +132,18 @@ ResultCode SetupProtectedMode(
   target_policy->SetStderrHandle(GetStdHandle(STD_ERROR_HANDLE));
 
   do {
+    // Determine token level based on whether Python DLL path is specified
+    TokenLevel tokenLevel = TokenLevel::USER_LOCKDOWN;
+    if (python_dll_path && wcslen(python_dll_path) > 0) {
+      LOG(INFO) << L"Python DLL path specified, using USER_LIMITED token level";
+      tokenLevel = TokenLevel::USER_LIMITED;
+    } else {
+      LOG(INFO) << L"No Python DLL path specified, using USER_LOCKDOWN token level";
+      tokenLevel = TokenLevel::USER_LOCKDOWN;
+    }
+
     result = target_policy->SetTokenLevel(
-      USER_RESTRICTED_SAME_ACCESS, USER_LOCKDOWN);
+      USER_RESTRICTED_SAME_ACCESS, tokenLevel);
     if (result != SBOX_ALL_OK)
       break;
 
@@ -253,20 +371,25 @@ ResultCode SetupNamedPipeRules(scoped_refptr<TargetPolicy> target_policy,
     if (result != SBOX_ALL_OK)
       break;
 
-    LOG(INFO) << L"Rule [NamedPipeSystem] added: " << rule.c_str() << std::
-        endl;
+    LOG(INFO) << L"Rule [NamedPipeSystem] added: " << rule.c_str() << std::endl;
   }
 
   return result;
 }
 
 bool Initialize() {
-
+  // Initialize broker logging first
+  if (!InitializeLogging()) {
+    std::cerr << "Failed to initialize logging" << std::endl;
+  }
+  
   LOG(INFO) << L"Broker Services initialize." << std::endl;
   BrokerServices* broker_services = SandboxFactory::GetBrokerServices();
 
-  if (broker_services == nullptr)
+  if (broker_services == nullptr) {
+    LOG(ERROR) << "Failed to get broker services";
     return false;
+  }
 
   LoadLibrary(L"userenv");
 
@@ -288,12 +411,63 @@ int Spawn(const algo::TargetOptions* options,
     scoped_refptr<TargetPolicy> target_policy
         = broker_services->CreatePolicy();
 
-    result_code = SetupProtectedMode(target_policy, options->package_name);
+    result_code = SetupProtectedMode(target_policy, options->package_name, options->python_dll_path);
     if (result_code != SBOX_ALL_OK) {
       break;
     }
 
-    result_code = SetupFileRules(target_policy, options->fs_rules);
+    // Check if Python DLL path is provided in the options
+    if (options->python_dll_path && wcslen(options->python_dll_path) > 0) {
+      LOG(INFO) << "Setting Python DLL path from config: " << options->python_dll_path;
+      // Set the environment variable for the target process
+      SetEnvironmentVariable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH", options->python_dll_path);
+    } else {
+      // Fallback to checking environment variable
+      wchar_t python_dll_path[MAX_PATH] = {0};
+      DWORD path_length = GetEnvironmentVariable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH",
+                                               python_dll_path, MAX_PATH);
+      if (path_length > 0) {
+        LOG(INFO) << "Using Python DLL path from environment: " << python_dll_path;
+        // Ensure it's available for the target process
+        SetEnvironmentVariable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH", python_dll_path);
+      } else {
+        LOG(INFO) << "No Python DLL path found in config or environment";
+      }
+    }
+
+    // Set the log filename with full path as an environment variable for the target process
+    wchar_t log_dir[MAX_PATH];
+    if (GetCurrentDirectory(MAX_PATH, log_dir) == 0) {
+      LOG(ERROR) << "Failed to get current directory for log file path";
+      // Can't break here since we're not in a loop, just continue with best effort
+    }
+
+    // Construct the full log path with proper directory separator
+    std::wstring log_dir_path(log_dir);
+    if (log_dir_path.back() != L'\\') {
+      log_dir_path += L"\\";
+    }
+    std::wstring full_log_path = log_dir_path + GenerateTargetLogFilename();
+    SetEnvironmentVariable(ENV_TARGET_LOG_FILE, full_log_path.c_str());
+    LOG(INFO) << "Set target log filename: " << full_log_path.c_str();
+
+    // Create a desktop log file for managed .NET app
+    std::wstring desktop_log_path = log_dir_path + GenerateDesktopLogFilename();
+    SetEnvironmentVariable(ENV_DESKTOP_LOG_FILE, desktop_log_path.c_str());
+    LOG(INFO) << "Set desktop log filename: " << desktop_log_path.c_str();
+
+    // Add log directory path to filesystem rules - allow writing to entire directory
+    std::wstring modified_fs_rules;
+    if (options->fs_rules && wcslen(options->fs_rules) > 0) {
+      modified_fs_rules = std::wstring(options->fs_rules) + L"|" + full_log_path + L"|RW" + L"|" + desktop_log_path + L"|RW";
+    } else {
+      modified_fs_rules = full_log_path + L"|RW" + L"|" + desktop_log_path + L"|RW";
+    }
+    
+    LOG(INFO) << L"Added log files to filesystem rules: " << full_log_path.c_str() << L", " << desktop_log_path.c_str();
+    
+    // Use the modified rules
+    result_code = SetupFileRules(target_policy, modified_fs_rules.c_str());
     if (result_code != SBOX_ALL_OK) {
       break;
     }
@@ -330,6 +504,8 @@ int Spawn(const algo::TargetOptions* options,
     target_information->thread_handle = process_information.hThread;
     target_information->process_id = process_information.dwProcessId;
     target_information->thread_id = process_information.dwThreadId;
+
+    LOG(INFO) << "Spawned child process with ID: " << process_information.dwProcessId;
   }
 
   return result_code;
