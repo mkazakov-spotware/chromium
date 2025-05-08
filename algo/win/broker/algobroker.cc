@@ -49,7 +49,10 @@ bool InitializeLogging() {
   
   logging::LoggingSettings settings;
   settings.logging_dest = logging::LOG_TO_STDERR; // Always log to stderr
-  
+
+  LOG(INFO) << L"enable_file_logging: " << enable_file_logging;
+  LOG(INFO) << L"log_filename: " << log_filename;
+
   if (enable_file_logging) {
     settings.logging_dest |= logging::LOG_TO_FILE; // Add file logging if enabled
     settings.log_file_path = log_filename.c_str();
@@ -132,18 +135,8 @@ ResultCode SetupProtectedMode(
   target_policy->SetStderrHandle(GetStdHandle(STD_ERROR_HANDLE));
 
   do {
-    // Determine token level based on whether Python DLL path is specified
-    TokenLevel tokenLevel = TokenLevel::USER_LOCKDOWN;
-    if (python_dll_path && wcslen(python_dll_path) > 0) {
-      LOG(INFO) << L"Python DLL path specified, using USER_LIMITED token level";
-      tokenLevel = TokenLevel::USER_LIMITED;
-    } else {
-      LOG(INFO) << L"No Python DLL path specified, using USER_LOCKDOWN token level";
-      tokenLevel = TokenLevel::USER_LOCKDOWN;
-    }
-
     result = target_policy->SetTokenLevel(
-      USER_RESTRICTED_SAME_ACCESS, tokenLevel);
+      USER_RESTRICTED_SAME_ACCESS, TokenLevel::USER_LOCKDOWN);
     if (result != SBOX_ALL_OK)
       break;
 
@@ -485,6 +478,13 @@ int Spawn(const algo::TargetOptions* options,
     result_code = SetupEventRules(target_policy, options->ev_rules);
     if (result_code != SBOX_ALL_OK) {
       break;
+    }
+
+    // Set Python environment variables for the target process if Python DLL path is provided
+    if (options->python_dll_path && wcslen(options->python_dll_path) > 0) {
+      LOG(INFO) << "Setting Python environment variables for target process: " << options->python_dll_path << std::endl;
+      // Set the Python DLL path for the target process
+      SetEnvironmentVariable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH", options->python_dll_path);
     }
 
     result_code = SpawnTarget(options->host_path,
