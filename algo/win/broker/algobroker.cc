@@ -135,18 +135,8 @@ ResultCode SetupProtectedMode(
   target_policy->SetStderrHandle(GetStdHandle(STD_ERROR_HANDLE));
 
   do {
-    // Determine token level based on whether Python DLL path is specified
-    TokenLevel tokenLevel = TokenLevel::USER_LOCKDOWN;
-    if (python_dll_path && wcslen(python_dll_path) > 0) {
-      LOG(INFO) << L"Python DLL path specified, using USER_LIMITED token level";
-      tokenLevel = TokenLevel::USER_LIMITED;
-    } else {
-      LOG(INFO) << L"No Python DLL path specified, using USER_LOCKDOWN token level";
-      tokenLevel = TokenLevel::USER_LOCKDOWN;
-    }
-
     result = target_policy->SetTokenLevel(
-      USER_RESTRICTED_SAME_ACCESS, tokenLevel);
+      USER_RESTRICTED_SAME_ACCESS, TokenLevel::USER_LOCKDOWN);
     if (result != SBOX_ALL_OK)
       break;
 
