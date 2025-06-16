@@ -59,42 +59,62 @@ int _tmain(int argc, wchar_t* argv[]) {
 }
 
 const std::wstring get_value(const char* key, const base::Optional<base::Value>& node) {
-    const std::string* const value = node->FindStringKey(key);
-    std::string rule;
+  if (!node.has_value()) {
+    LOG(WARNING) << "Node is null when looking for key: " << key;
+    return std::wstring();
+  }
 
-    if (value) {
-        rule += *value;
-    }
-    else {
-        const base::Value* list_value = node->FindListKey(key);
+  std::string rule;
+  const base::Value* key_value = node->FindKey(key);
 
-        for (const auto& entry : list_value->GetList()) {
-            if (rule.size()) {
-                rule += PIPE;
-            }
-            if (entry.is_dict()) {
-                base::Optional<bool> ro = entry.FindBoolKey(RO);
-                const std::string* const pattern = entry.FindStringKey(PATTERN);
-                assert(pattern);
-                rule += *pattern;
+  if (!key_value) {
+    LOG(INFO) << "Key '" << key << "' is missing";
+    return std::wstring();
+  }
 
-                if (ro) {
-                    rule += PIPE + (ro.value() ? std::string("RO") : std::string("RW"));
-                }
-            }
-            else if (entry.is_string()) {
-                rule += entry.GetString();
-            }
-            else {
-                LOG(INFO) << "unknown type of node" << std::endl;
-            }
+  if (key_value->is_string()) {
+    rule = key_value->GetString();
+  }
+  else if (key_value->is_list()) {
+    for (const auto& entry : key_value->GetList()) {
+      if (!rule.empty()) {
+        rule += PIPE;
+      }
+
+      if (entry.is_dict()) {
+        const std::string* pattern = entry.FindStringKey(PATTERN);
+        if (!pattern) {
+          LOG(ERROR) << "Missing PATTERN in dict entry for key: " << key;
+          continue;
         }
-    }
 
-    LOG(INFO) << key << " is " << rule << std::endl;
-    std::wstring output;
-    base::UTF8ToUTF16(rule.c_str(), rule.size(), &output);
-    return output;
+        rule += *pattern;
+        if (auto ro = entry.FindBoolKey(RO)) {
+          rule += PIPE + (ro.value() ? "RO" : "RW");
+        }
+      }
+      else if (entry.is_string()) {
+        rule += entry.GetString();
+      }
+      else {
+        LOG(WARNING) << "Unsupported entry type in list for key: " << key;
+      }
+    }
+  }
+  else if (key_value->is_none()) {
+    LOG(INFO) << "Key '" << key << "' has null value";
+  }
+  else {
+    LOG(WARNING) << "Key '" << key << "' has unsupported type";
+  }
+
+  if (!rule.empty()) {
+    LOG(INFO) << "Key '" << key << "' resolved to: " << rule;
+  }
+
+  std::wstring output;
+  base::UTF8ToUTF16(rule.c_str(), rule.size(), &output);
+  return output;
 }
 
 int run_broker_main(int argc, wchar_t** argv) {
