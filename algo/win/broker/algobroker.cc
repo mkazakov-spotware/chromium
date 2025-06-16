@@ -410,19 +410,22 @@ int Spawn(const algo::TargetOptions* options,
     }
 
     // Check if Python DLL path is provided in the options
+    std::wstring python_dll_path_str;
     if (options->python_dll_path && wcslen(options->python_dll_path) > 0) {
       LOG(INFO) << "Setting Python DLL path from config: " << options->python_dll_path;
       // Set the environment variable for the target process
       SetEnvironmentVariable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH", options->python_dll_path);
+      python_dll_path_str = options->python_dll_path;
     } else {
       // Fallback to checking environment variable
       wchar_t python_dll_path[MAX_PATH] = {0};
       DWORD path_length = GetEnvironmentVariable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH",
-                                               python_dll_path, MAX_PATH);
+                                                python_dll_path, MAX_PATH);
       if (path_length > 0) {
         LOG(INFO) << "Using Python DLL path from environment: " << python_dll_path;
         // Ensure it's available for the target process
         SetEnvironmentVariable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH", python_dll_path);
+        python_dll_path_str = python_dll_path;
       } else {
         LOG(INFO) << "No Python DLL path found in config or environment";
       }
@@ -455,6 +458,12 @@ int Spawn(const algo::TargetOptions* options,
       modified_fs_rules = std::wstring(options->fs_rules) + L"|" + full_log_path + L"|RW" + L"|" + desktop_log_path + L"|RW";
     } else {
       modified_fs_rules = full_log_path + L"|RW" + L"|" + desktop_log_path + L"|RW";
+    }
+    
+    // Add Python DLL path to filesystem rules with readonly access if available
+    if (!python_dll_path_str.empty()) {
+      modified_fs_rules += L"|" + python_dll_path_str + L"|RO";
+      LOG(INFO) << L"Added Python DLL path to filesystem rules (readonly): " << python_dll_path_str.c_str();
     }
     
     LOG(INFO) << L"Added log files to filesystem rules: " << full_log_path.c_str() << L", " << desktop_log_path.c_str();
