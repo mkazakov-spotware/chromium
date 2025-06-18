@@ -231,24 +231,6 @@ void DeleteFilePath(const PathString& log_name) {
 #endif
 }
 
-PathString GetDefaultLogFile() {
-#if defined(OS_WIN)
-  // On Windows we use the same path as the exe.
-  wchar_t module_name[MAX_PATH];
-  GetModuleFileName(nullptr, module_name, MAX_PATH);
-
-  PathString log_name = module_name;
-  PathString::size_type last_backslash = log_name.rfind('\\', log_name.size());
-  if (last_backslash != PathString::npos)
-    log_name.erase(last_backslash + 1);
-  log_name += FILE_PATH_LITERAL("debug.log");
-  return log_name;
-#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
-  // On other platforms we just use the current directory.
-  return PathString("debug.log");
-#endif
-}
-
 // We don't need locks on Windows for atomically appending to files. The OS
 // provides this functionality.
 #if defined(OS_POSIX) || defined(OS_FUCHSIA)
@@ -268,9 +250,7 @@ bool InitializeLogFileHandle() {
     return true;
 
   if (!g_log_file_name) {
-    // Nobody has called InitLogging to specify a debug log file, so here we
-    // initialize the log file name to a default.
-    g_log_file_name = new PathString(GetDefaultLogFile());
+    return false;
   }
 
   if ((g_logging_destination & LOG_TO_FILE) == 0)
