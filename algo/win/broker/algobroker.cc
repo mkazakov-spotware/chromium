@@ -29,92 +29,97 @@ std::wstring GetCurrentDateTimeString() {
   return std::wstring(buffer);
 }
 
-bool InitializeLogging() {
-  // Check environment variable to determine if file logging is enabled
+std::wstring GenerateBrokerLogFilename() {
+  return L"broker_" + GetCurrentDateTimeString() + L".log";
+}
+
+std::wstring GenerateTargetLogFilename() {
+  return L"target_" + GetCurrentDateTimeString() + L".log";
+}
+
+std::wstring GenerateDesktopLogFilename() {
+  return L"desktop_" + GetCurrentDateTimeString() + L".log";
+}
+
+bool IsFileLoggingEnabled() {
   wchar_t buffer[MAX_PATH];
   DWORD result = GetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_LOG_FILE_ENABLED, buffer, MAX_PATH);
-  bool enable_file_logging = false;
-  
+
   if (result > 0 && result < MAX_PATH) {
     std::wstring value(buffer);
-    enable_file_logging = (value == L"True");
+    return (value == L"True");
   }
-  
-  // Generate log filename with timestamp
-  std::wstring log_filename = L"broker_" + GetCurrentDateTimeString() + L".log";
-  
+
+  return false;
+}
+
+bool InitializeLogging() {
+  bool enable_file_logging = IsFileLoggingEnabled();
+
+  std::wstring log_filename = GenerateBrokerLogFilename();
+
   logging::LoggingSettings settings;
-  settings.logging_dest = logging::LOG_TO_STDERR; // Always log to stderr
+  settings.logging_dest = logging::LOG_TO_STDERR;
 
   LOG(INFO) << L"enable_file_logging: " << enable_file_logging;
   LOG(INFO) << L"log_filename: " << log_filename;
 
   if (enable_file_logging) {
-    settings.logging_dest |= logging::LOG_TO_FILE; // Add file logging if enabled
+    settings.logging_dest |= logging::LOG_TO_FILE;
     settings.log_file_path = log_filename.c_str();
   }
   
   return logging::InitLogging(settings);
 }
 
-// Define environment variable name for target log file
-#define ENV_TARGET_LOG_FILE L"ALGO_TARGET_LOG_FILE"
-
-// Define environment variable name for .NET desktop log file
-#define ENV_DESKTOP_LOG_FILE L"ALGO_DESKTOP_LOG_FILE"
-
-// Generate log filename for a child target process
-std::wstring GenerateTargetLogFilename() {
-  return L"target_" + GetCurrentDateTimeString() + L".log";
-}
-
-// Generate log filename for managed .NET desktop app
-std::wstring GenerateDesktopLogFilename() {
-  return L"desktop_" + GetCurrentDateTimeString() + L".log";
-}
-
 // Initialize logging for a child target process - reads log filename from environment variable
 bool InitializeChildProcessLogging() {
-  // Check environment variable to determine if file logging is enabled
-  wchar_t buffer[MAX_PATH];
-  DWORD result = GetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_LOG_FILE_ENABLED, buffer, MAX_PATH);
-  bool enable_file_logging = false;
-  
-  if (result > 0 && result < MAX_PATH) {
-    std::wstring value(buffer);
-    enable_file_logging = (value == L"True");
-  }
-  
+  bool enable_file_logging = IsFileLoggingEnabled();
+
   if (!enable_file_logging) {
-    // File logging disabled, only use stderr
     logging::LoggingSettings settings;
     settings.logging_dest = logging::LOG_TO_STDERR;
     return logging::InitLogging(settings);
   }
-  
-  // Read log filename from environment variable
-  result = GetEnvironmentVariable(ENV_TARGET_LOG_FILE, buffer, MAX_PATH);
-  if (result == 0 || result >= MAX_PATH) {
-    // Environment variable not set or too long, use default naming
-    std::wstring log_filename = GenerateTargetLogFilename();
-    
-    logging::LoggingSettings settings;
-    settings.logging_dest = logging::LOG_TO_FILE | logging::LOG_TO_STDERR;
-    settings.log_file_path = log_filename.c_str();
 
-    LOG(INFO) << L"Initializing child process logging to (default): " << log_filename.c_str();
-    
-    return logging::InitLogging(settings);
+  wchar_t buffer[MAX_PATH];
+  DWORD result = GetEnvironmentVariable(algo::CT_ALGOHOST_TARGET_LOG_FILE_PATH, buffer, MAX_PATH);
+
+  std::wstring log_filename;
+
+  if (result == 0 || result >= MAX_PATH) {
+    // Environment variable not found or too long - generate new log filename with full path
+    wchar_t log_dir[MAX_PATH];
+    if (GetCurrentDirectory(MAX_PATH, log_dir) == 0) {
+      LOG(ERROR) << "Failed to get current directory for log file path";
+      // Fall back to stderr only if we can't get current directory
+      logging::LoggingSettings settings;
+      settings.logging_dest = logging::LOG_TO_STDERR;
+      return logging::InitLogging(settings);
+    }
+
+    std::wstring log_dir_path(log_dir);
+    if (log_dir_path.back() != L'\\') {
+      log_dir_path += L"\\";
+    }
+
+    log_filename = log_dir_path + GenerateTargetLogFilename();
+    LOG(INFO) << L"CT_ALGOHOST_TARGET_LOG_FILE_PATH not found, using generated filename: " << log_filename.c_str();
+
+    // Also create a desktop log file for managed .NET app (similar to broker behavior)
+    std::wstring desktop_log_path = log_dir_path + GenerateDesktopLogFilename();
+    SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_LOG_FILE_PATH, desktop_log_path.c_str());
+    LOG(INFO) << L"Set desktop log filename: " << desktop_log_path.c_str();
+
+  } else {
+    // Use log filename from environment variable
+    log_filename = std::wstring(buffer);
+    LOG(INFO) << L"Initializing child process logging to (from env): " << log_filename.c_str();
   }
-  
-  // Use log filename from environment variable
-  std::wstring log_filename(buffer);
-  
+
   logging::LoggingSettings settings;
   settings.logging_dest = logging::LOG_TO_FILE | logging::LOG_TO_STDERR;
   settings.log_file_path = log_filename.c_str();
-  
-  LOG(INFO) << L"Initializing child process logging to (from env): " << log_filename.c_str();
   
   return logging::InitLogging(settings);
 }
@@ -426,45 +431,58 @@ int Spawn(const algo::TargetOptions* options,
       }
     }
 
-    // Set the log filename with full path as an environment variable for the target process
-    wchar_t log_dir[MAX_PATH];
-    if (GetCurrentDirectory(MAX_PATH, log_dir) == 0) {
-      LOG(ERROR) << "Failed to get current directory for log file path";
-      // Can't break here since we're not in a loop, just continue with best effort
-    }
+    bool enable_file_logging = IsFileLoggingEnabled();
 
-    // Construct the full log path with proper directory separator
-    std::wstring log_dir_path(log_dir);
-    if (log_dir_path.back() != L'\\') {
-      log_dir_path += L"\\";
-    }
-    std::wstring full_log_path = log_dir_path + GenerateTargetLogFilename();
-    SetEnvironmentVariable(ENV_TARGET_LOG_FILE, full_log_path.c_str());
-    LOG(INFO) << "Set target log filename: " << full_log_path.c_str();
-
-    // Create a desktop log file for managed .NET app
-    std::wstring desktop_log_path = log_dir_path + GenerateDesktopLogFilename();
-    SetEnvironmentVariable(ENV_DESKTOP_LOG_FILE, desktop_log_path.c_str());
-    LOG(INFO) << "Set desktop log filename: " << desktop_log_path.c_str();
-
-    // Add log directory path to filesystem rules - allow writing to entire directory
     std::wstring modified_fs_rules;
     if (options->fs_rules && wcslen(options->fs_rules) > 0) {
-      modified_fs_rules = std::wstring(options->fs_rules) + L"|" + full_log_path + L"|RW" + L"|" + desktop_log_path + L"|RW";
-    } else {
-      modified_fs_rules = full_log_path + L"|RW" + L"|" + desktop_log_path + L"|RW";
+      modified_fs_rules = options->fs_rules;
     }
-    
+
+    if (enable_file_logging) {
+      // Set the log filename with full path as an environment variable for the target process
+      wchar_t log_dir[MAX_PATH];
+      if (GetCurrentDirectory(MAX_PATH, log_dir) == 0) {
+        LOG(ERROR) << "Failed to get current directory for log file path";
+        // Can't break here since we're not in a loop, just continue with best effort
+      }
+
+      // Construct the full log path with proper directory separator
+      std::wstring log_dir_path(log_dir);
+      if (log_dir_path.back() != L'\\') {
+        log_dir_path += L"\\";
+      }
+      std::wstring full_log_path = log_dir_path + GenerateTargetLogFilename();
+      SetEnvironmentVariable(algo::CT_ALGOHOST_TARGET_LOG_FILE_PATH, full_log_path.c_str());
+      LOG(INFO) << "Set target log filename: " << full_log_path.c_str();
+
+      // Create a desktop log file for managed .NET app
+      std::wstring desktop_log_path = log_dir_path + GenerateDesktopLogFilename();
+      SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_LOG_FILE_PATH, desktop_log_path.c_str());
+      LOG(INFO) << "Set desktop log filename: " << desktop_log_path.c_str();
+
+      // Add log directory path to filesystem rules - allow writing to entire directory
+      if (!modified_fs_rules.empty()) {
+        modified_fs_rules += L"|" + full_log_path + L"|RW" + L"|" + desktop_log_path + L"|RW";
+      } else {
+        modified_fs_rules = full_log_path + L"|RW" + L"|" + desktop_log_path + L"|RW";
+      }
+
+      LOG(INFO) << L"Added log files to filesystem rules: " << full_log_path.c_str() << L", " << desktop_log_path.c_str();
+    }
+
     // Add Python DLL path to filesystem rules with readonly access if available
     if (!python_dll_path_str.empty()) {
-      modified_fs_rules += L"|" + python_dll_path_str + L"|RO";
+      if (!modified_fs_rules.empty()) {
+        modified_fs_rules += L"|" + python_dll_path_str + L"|RO";
+      } else {
+        modified_fs_rules = python_dll_path_str + L"|RO";
+      }
       LOG(INFO) << L"Added Python DLL path to filesystem rules (readonly): " << python_dll_path_str.c_str();
     }
-    
-    LOG(INFO) << L"Added log files to filesystem rules: " << full_log_path.c_str() << L", " << desktop_log_path.c_str();
-    
-    // Use the modified rules
-    result_code = SetupFileRules(target_policy, modified_fs_rules.c_str());
+
+    // Use the modified rules (or original rules if no modifications were made)
+    const wchar_t* fs_rules_to_use = modified_fs_rules.empty() ? options->fs_rules : modified_fs_rules.c_str();
+    result_code = SetupFileRules(target_policy, fs_rules_to_use);
     if (result_code != SBOX_ALL_OK) {
       break;
     }

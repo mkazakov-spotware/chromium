@@ -19,8 +19,6 @@
 
 #define HOSTFXR_LIB L"hostfxr.dll"
 
-#define ENV_DESKTOP_LOG_FILE L"ALGO_DESKTOP_LOG_FILE"
-
 using string_t = std::basic_string<char_t>;
 
 namespace
@@ -99,16 +97,6 @@ int host_main(int argc, wchar_t* argv[])
     SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_DLL_PATH, PYTHON_DLL_PATH.c_str());
   } else {
     LOG(INFO) << L"Python DLL path not found in environment variables" << std::endl;
-  }
-
-  // Read desktop log file path from environment variable and pass it to .NET app
-  wchar_t desktop_log_path[MAX_PATH];
-  if (GetEnvironmentVariable(ENV_DESKTOP_LOG_FILE, desktop_log_path, MAX_PATH) > 0) {
-    LOG(INFO) << "Using desktop log file: " << desktop_log_path << std::endl;
-    // Set environment variable for .NET app to use
-    SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_LOG_FILE_PATH, desktop_log_path);
-  } else {
-    LOG(INFO) << "Desktop log file path not found in environment variables" << std::endl;
   }
 
   sandbox::TargetServices* target_services = sandbox::SandboxFactory::GetTargetServices();
