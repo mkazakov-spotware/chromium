@@ -29,14 +29,10 @@ std::wstring GetCurrentDateTimeString() {
   return std::wstring(buffer);
 }
 
-// Initialize logging to file for the broker process
-// Define environment variable name for file logging control
-#define ENV_ENABLE_FILE_LOGGING L"ALGO_ENABLE_FILE_LOGGING"
-
 bool InitializeLogging() {
   // Check environment variable to determine if file logging is enabled
   wchar_t buffer[MAX_PATH];
-  DWORD result = GetEnvironmentVariable(ENV_ENABLE_FILE_LOGGING, buffer, MAX_PATH);
+  DWORD result = GetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_LOG_FILE_ENABLED, buffer, MAX_PATH);
   bool enable_file_logging = false;
   
   if (result > 0 && result < MAX_PATH) {
@@ -81,7 +77,7 @@ std::wstring GenerateDesktopLogFilename() {
 bool InitializeChildProcessLogging() {
   // Check environment variable to determine if file logging is enabled
   wchar_t buffer[MAX_PATH];
-  DWORD result = GetEnvironmentVariable(ENV_ENABLE_FILE_LOGGING, buffer, MAX_PATH);
+  DWORD result = GetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_LOG_FILE_ENABLED, buffer, MAX_PATH);
   bool enable_file_logging = false;
   
   if (result > 0 && result < MAX_PATH) {
