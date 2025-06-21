@@ -106,7 +106,7 @@ int host_main(int argc, wchar_t* argv[])
   if (GetEnvironmentVariable(ENV_DESKTOP_LOG_FILE, desktop_log_path, MAX_PATH) > 0) {
     LOG(INFO) << "Using desktop log file: " << desktop_log_path << std::endl;
     // Set environment variable for .NET app to use
-    SetEnvironmentVariable(L"__CT_ALGOHOST_DESKTOP_LOG_FILE", desktop_log_path);
+    SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_LOG_FILE_PATH, desktop_log_path);
   } else {
     LOG(INFO) << "Desktop log file path not found in environment variables" << std::endl;
   }

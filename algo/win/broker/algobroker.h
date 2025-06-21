@@ -11,6 +11,7 @@ namespace algo {
 
 constexpr const wchar_t* CT_ALGOHOST_SESSION_PYTHON_DLL_PATH = L"__CT_ALGOHOST_SESSION_PYTHON_DLL_PATH";
 constexpr const wchar_t* CT_ALGOHOST_SESSION_LOG_FILE_ENABLED = L"__CT_ALGOHOST_SESSION_LOG_FILE_ENABLED";
+constexpr const wchar_t* CT_ALGOHOST_SESSION_LOG_FILE_PATH = L"__CT_ALGOHOST_SESSION_LOG_FILE_PATH";
 
 struct TargetOptions {
   const wchar_t* host_path;
