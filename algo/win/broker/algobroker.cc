@@ -45,7 +45,7 @@ bool InitializeLogging() {
   }
   
   // Generate log filename with timestamp
-  std::wstring log_filename = L"broker_" + GetCurrentDateTimeString() + L".txt";
+  std::wstring log_filename = L"broker_" + GetCurrentDateTimeString() + L".log";
   
   logging::LoggingSettings settings;
   settings.logging_dest = logging::LOG_TO_STDERR; // Always log to stderr
@@ -69,12 +69,12 @@ bool InitializeLogging() {
 
 // Generate log filename for a child target process
 std::wstring GenerateTargetLogFilename() {
-  return L"target_" + GetCurrentDateTimeString() + L".txt";
+  return L"target_" + GetCurrentDateTimeString() + L".log";
 }
 
 // Generate log filename for managed .NET desktop app
 std::wstring GenerateDesktopLogFilename() {
-  return L"desktop_" + GetCurrentDateTimeString() + L".txt";
+  return L"desktop_" + GetCurrentDateTimeString() + L".log";
 }
 
 // Initialize logging for a child target process - reads log filename from environment variable
