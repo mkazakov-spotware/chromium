@@ -40,12 +40,11 @@ int _tmain(int argc, wchar_t* argv[]) {
 
     // Check for Python DLL path
     wchar_t python_dll_path[MAX_PATH] = {0};
-    DWORD path_length = GetEnvironmentVariable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH",
-                                             python_dll_path, MAX_PATH);
+    DWORD path_length = GetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_DLL_PATH, python_dll_path, MAX_PATH);
     if (path_length > 0) {
       LOG(INFO) << "Using Python DLL path: " << python_dll_path;
       // Re-set it to ensure it's available to the .NET process
-      SetEnvironmentVariable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH", python_dll_path);
+      SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_DLL_PATH, python_dll_path);
     } else {
       LOG(INFO) << "No Python DLL path found in environment";
     }

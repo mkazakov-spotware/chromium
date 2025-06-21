@@ -9,6 +9,8 @@
 
 namespace algo {
 
+constexpr const wchar_t* CT_ALGOHOST_SESSION_PYTHON_DLL_PATH = L"__CT_ALGOHOST_SESSION_PYTHON_DLL_PATH";
+
 struct TargetOptions {
   const wchar_t* host_path;
   const wchar_t* command_line;

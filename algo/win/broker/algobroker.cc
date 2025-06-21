@@ -414,17 +414,16 @@ int Spawn(const algo::TargetOptions* options,
     if (options->python_dll_path && wcslen(options->python_dll_path) > 0) {
       LOG(INFO) << "Setting Python DLL path from config: " << options->python_dll_path;
       // Set the environment variable for the target process
-      SetEnvironmentVariable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH", options->python_dll_path);
+      SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_DLL_PATH, options->python_dll_path);
       python_dll_path_str = options->python_dll_path;
     } else {
       // Fallback to checking environment variable
       wchar_t python_dll_path[MAX_PATH] = {0};
-      DWORD path_length = GetEnvironmentVariable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH",
-                                                python_dll_path, MAX_PATH);
+      DWORD path_length = GetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_DLL_PATH, python_dll_path, MAX_PATH);
       if (path_length > 0) {
         LOG(INFO) << "Using Python DLL path from environment: " << python_dll_path;
         // Ensure it's available for the target process
-        SetEnvironmentVariable(L"__CT_ALGOHOST_ENDPOINT_PYTHON_DLL_PATH", python_dll_path);
+        SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_DLL_PATH, python_dll_path);
         python_dll_path_str = python_dll_path;
       } else {
         LOG(INFO) << "No Python DLL path found in config or environment";
