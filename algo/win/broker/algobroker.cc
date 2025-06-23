@@ -557,6 +557,27 @@ int Spawn(const algo::TargetOptions* options,
       }
     }
 
+    // Check if Python Virtual Environment path is provided in the options
+    std::wstring python_virtualenv_path_str;
+    if (options->python_virtualenv_path && wcslen(options->python_virtualenv_path) > 0) {
+      LOG(INFO) << "Setting Python Virtual Environment path from config: " << options->python_virtualenv_path;
+      // Set the environment variable for the target process
+      SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_VIRTUALENV_PATH, options->python_virtualenv_path);
+      python_virtualenv_path_str = options->python_virtualenv_path;
+    } else {
+      // Fallback to checking environment variable
+      wchar_t python_virtualenv_path[MAX_PATH] = {0};
+      DWORD path_length = GetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_VIRTUALENV_PATH, python_virtualenv_path, MAX_PATH);
+      if (path_length > 0) {
+        LOG(INFO) << "Using Python Virtual Environment path from environment: " << python_virtualenv_path;
+        // Ensure it's available for the target process
+        SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_VIRTUALENV_PATH, python_virtualenv_path);
+        python_virtualenv_path_str = python_virtualenv_path;
+      } else {
+        LOG(INFO) << "No Python Virtual Environment path found in config or environment";
+      }
+    }
+
     bool enable_file_logging = IsFileLoggingEnabled();
 
     std::wstring modified_fs_rules;
@@ -600,6 +621,16 @@ int Spawn(const algo::TargetOptions* options,
         modified_fs_rules = python_dll_path_str + L"|RO";
       }
       LOG(INFO) << L"Added Python DLL path to filesystem rules (readonly): " << python_dll_path_str.c_str();
+    }
+
+    // Add Python Virtual Environment path to filesystem rules with readonly access if available
+    if (!python_virtualenv_path_str.empty()) {
+      if (!modified_fs_rules.empty()) {
+        modified_fs_rules += L"|" + python_virtualenv_path_str + L"|RO";
+      } else {
+        modified_fs_rules = python_virtualenv_path_str + L"|RO";
+      }
+      LOG(INFO) << L"Added Python Virtual Environment path to filesystem rules (readonly): " << python_virtualenv_path_str.c_str();
     }
 
     // Use the modified rules (or original rules if no modifications were made)
