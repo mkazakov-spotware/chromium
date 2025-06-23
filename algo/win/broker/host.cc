@@ -165,6 +165,7 @@ int run_broker_main(int argc, wchar_t** argv) {
 
         algo::TargetInformation* target_result = new algo::TargetInformation;
         algo::TargetOptions* options = new algo::TargetOptions{
+            title.c_str(),
             exe,                         // host_path
             cmd.c_str(),                 // command_line
             current_directory.c_str(),

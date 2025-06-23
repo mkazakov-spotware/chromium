@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <ctime>
+#include <shellapi.h>
 
 #include "algo/win/broker/algobroker.h"
 #include "base/logging.h"
@@ -33,12 +34,94 @@ std::wstring GenerateBrokerLogFilename() {
   return L"broker_" + GetCurrentDateTimeString() + L".log";
 }
 
-std::wstring GenerateTargetLogFilename() {
-  return L"target_" + GetCurrentDateTimeString() + L".log";
+// Clean title to be filename-safe (helper function)
+std::wstring CleanTitleForFilename(const std::wstring& title) {
+    if (title.empty()) {
+        return L"unknown";
+    }
+
+    std::wstring cleaned_title = title;
+
+    // Remove invalid characters
+    std::wstring invalid_chars = L"<>:\"/\\|?*";
+    for (wchar_t c : invalid_chars) {
+        std::replace(cleaned_title.begin(), cleaned_title.end(), c, L'_');
+    }
+
+    // Limit length to reasonable size
+    if (cleaned_title.length() > 50) {
+        cleaned_title = cleaned_title.substr(0, 50);
+    }
+
+    return cleaned_title;
 }
 
-std::wstring GenerateDesktopLogFilename() {
-  return L"desktop_" + GetCurrentDateTimeString() + L".log";
+// Get the title argument from command line (for direct-target mode)
+std::wstring GetTitleArgument() {
+    int argc;
+    wchar_t** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+
+    std::wstring title;
+    if (argv != nullptr) {
+        if (argc > 1) {
+            title = std::wstring(argv[1]);
+        }
+    }
+
+    LocalFree(argv);
+    return CleanTitleForFilename(title);
+}
+
+// Generate target log filename with optional title parameter
+std::wstring GenerateTargetLogFilename(bool is_protected = true, const wchar_t* title_override = nullptr) {
+    std::wstring title;
+
+    if (title_override != nullptr && wcslen(title_override) > 0) {
+        // Use provided title (broker-target mode)
+        title = CleanTitleForFilename(std::wstring(title_override));
+    } else {
+        // Fall back to command line argument (direct-target mode)
+        title = GetTitleArgument();
+    }
+
+    std::wstring filename = L"target_";
+
+    if (!title.empty() && title != L"unknown") {
+        filename += title + L"_";
+    }
+
+    if (!is_protected) {
+        filename += L"unprotected_";
+    }
+
+    filename += GetCurrentDateTimeString() + L".log";
+    return filename;
+}
+
+// Generate desktop log filename with optional title parameter
+std::wstring GenerateDesktopLogFilename(bool is_protected = true, const wchar_t* title_override = nullptr) {
+    std::wstring title;
+
+    if (title_override != nullptr && wcslen(title_override) > 0) {
+        // Use provided title (broker-target mode)
+        title = CleanTitleForFilename(std::wstring(title_override));
+    } else {
+        // Fall back to command line argument (direct-target mode)
+        title = GetTitleArgument();
+    }
+
+    std::wstring filename = L"desktop_";
+
+    if (!title.empty() && title != L"unknown") {
+        filename += title + L"_";
+    }
+
+    if (!is_protected) {
+        filename += L"unprotected_";
+    }
+
+    filename += GetCurrentDateTimeString() + L".log";
+    return filename;
 }
 
 // Extract log directory path from executable path with fallback
@@ -140,11 +223,11 @@ bool InitializeChildProcessLogging() {
       return logging::InitLogging(settings);
     }
 
-    log_filename = log_dir_path + GenerateTargetLogFilename();
+    log_filename = log_dir_path + GenerateTargetLogFilename(false);
     log_message = L"CT_ALGOHOST_TARGET_LOG_FILE_PATH not found, using generated filename: " + log_filename;
 
     // Also create a desktop log file for managed .NET app (similar to broker behavior)
-    std::wstring desktop_log_path = log_dir_path + GenerateDesktopLogFilename();
+    std::wstring desktop_log_path = log_dir_path + GenerateDesktopLogFilename(false);
     SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_LOG_FILE_PATH, desktop_log_path.c_str());
     log_message += L"\nSet desktop log filename: " + desktop_log_path;
 
@@ -489,12 +572,12 @@ int Spawn(const algo::TargetOptions* options,
         // Continue with best effort - don't fail the entire spawn operation
       } else {
         // Set the log filename with full path as an environment variable for the target process
-        std::wstring full_log_path = log_dir_path + GenerateTargetLogFilename();
+        std::wstring full_log_path = log_dir_path + GenerateTargetLogFilename(true, options->title);
         SetEnvironmentVariable(algo::CT_ALGOHOST_TARGET_LOG_FILE_PATH, full_log_path.c_str());
         LOG(INFO) << "Set target log filename: " << full_log_path.c_str();
 
         // Create a desktop log file for managed .NET app
-        std::wstring desktop_log_path = log_dir_path + GenerateDesktopLogFilename();
+        std::wstring desktop_log_path = log_dir_path + GenerateDesktopLogFilename(true, options->title);
         SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_LOG_FILE_PATH, desktop_log_path.c_str());
         LOG(INFO) << "Set desktop log filename: " << desktop_log_path.c_str();
 

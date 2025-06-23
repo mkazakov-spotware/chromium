@@ -15,6 +15,7 @@ constexpr const wchar_t* CT_ALGOHOST_SESSION_LOG_FILE_PATH = L"__CT_ALGOHOST_SES
 constexpr const wchar_t* CT_ALGOHOST_TARGET_LOG_FILE_PATH = L"__CT_ALGOHOST_TARGET_LOG_FILE_PATH";
 
 struct TargetOptions {
+  const wchar_t* title;
   const wchar_t* host_path;
   const wchar_t* command_line;
   const wchar_t* current_directory;
