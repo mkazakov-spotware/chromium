@@ -62,6 +62,7 @@ const string_t ENDPOINT_TYPE = read_environment_variable(L"__CT_ALGOHOST_ENDPOIN
 const string_t ENDPOINT_METHOD = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_METHOD");
 const string_t PRELOAD_ENDPOINT_METHOD = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_PRELOAD_METHOD");
 const string_t PYTHON_DLL_PATH = read_environment_variable(algo::CT_ALGOHOST_SESSION_PYTHON_DLL_PATH);
+const string_t PYTHON_VIRTUALENV_PATH = read_environment_variable(algo::CT_ALGOHOST_SESSION_PYTHON_VIRTUALENV_PATH);
 const string_t CONFIGURE_PYTHON_METHOD = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_CONFIGURE_PYTHON_METHOD");
 
 extern "C" {
@@ -97,6 +98,14 @@ int host_main(int argc, wchar_t* argv[])
     SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_DLL_PATH, PYTHON_DLL_PATH.c_str());
   } else {
     LOG(INFO) << L"Python DLL path not found in environment variables" << std::endl;
+  }
+
+  // Add Python Virtual Environment path environment variable if it exists
+  if (!PYTHON_VIRTUALENV_PATH.empty()) {
+    LOG(INFO) << L"Setting Python Virtual Environment path: " << PYTHON_VIRTUALENV_PATH.c_str() << std::endl;
+    SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_VIRTUALENV_PATH, PYTHON_VIRTUALENV_PATH.c_str());
+  } else {
+    LOG(INFO) << L"Python Virtual Environment path not found in environment variables" << std::endl;
   }
 
   sandbox::TargetServices* target_services = sandbox::SandboxFactory::GetTargetServices();
