@@ -613,26 +613,6 @@ int Spawn(const algo::TargetOptions* options,
       }
     }
 
-    // Add Python DLL path to filesystem rules with readonly access if available
-    if (!python_dll_path_str.empty()) {
-      if (!modified_fs_rules.empty()) {
-        modified_fs_rules += L"|" + python_dll_path_str + L"|RO";
-      } else {
-        modified_fs_rules = python_dll_path_str + L"|RO";
-      }
-      LOG(INFO) << L"Added Python DLL path to filesystem rules (readonly): " << python_dll_path_str.c_str();
-    }
-
-    // Add Python Virtual Environment path to filesystem rules with readonly access if available
-    if (!python_virtualenv_path_str.empty()) {
-      if (!modified_fs_rules.empty()) {
-        modified_fs_rules += L"|" + python_virtualenv_path_str + L"|RO";
-      } else {
-        modified_fs_rules = python_virtualenv_path_str + L"|RO";
-      }
-      LOG(INFO) << L"Added Python Virtual Environment path to filesystem rules (readonly): " << python_virtualenv_path_str.c_str();
-    }
-
     // Use the modified rules (or original rules if no modifications were made)
     const wchar_t* fs_rules_to_use = modified_fs_rules.empty() ? options->fs_rules : modified_fs_rules.c_str();
     result_code = SetupFileRules(target_policy, fs_rules_to_use);
