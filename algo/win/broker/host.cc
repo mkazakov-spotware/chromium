@@ -179,6 +179,8 @@ int run_broker_main(int argc, wchar_t** argv) {
             python_dll_path.c_str()      // python_dll_path
         };
 
+		Sleep(100);
+
         int result = Spawn(options, target_result);
 
         if (target_result != nullptr) {
