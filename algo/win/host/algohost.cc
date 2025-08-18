@@ -61,8 +61,8 @@ const string_t ENDPOINT_CONFIG = read_environment_variable(L"__CT_ALGOHOST_ENDPO
 const string_t ENDPOINT_TYPE = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_TYPE");
 const string_t ENDPOINT_METHOD = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_METHOD");
 const string_t PRELOAD_ENDPOINT_METHOD = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_PRELOAD_METHOD");
-const string_t PYTHON_DLL_PATH = read_environment_variable(algo::CT_ALGOHOST_SESSION_PYTHON_DLL_PATH);
-const string_t PYTHON_VIRTUALENV_PATH = read_environment_variable(algo::CT_ALGOHOST_SESSION_PYTHON_VIRTUALENV_PATH);
+string_t PYTHON_VIRTUALENV_PATH;
+string_t PYTHON_DLL_PATH;
 const string_t CONFIGURE_PYTHON_METHOD = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_CONFIGURE_PYTHON_METHOD");
 
 extern "C" {
@@ -92,20 +92,17 @@ int host_main(int argc, wchar_t* argv[])
   SetEnvironmentVariable(L"DOTNET_GCCpuGroup", L"1");
   SetEnvironmentVariable(L"DOTNET_Thread_UseAllCpuGroups", L"1");
 
-  // Add Python DLL path environment variable if it exists
-  if (!PYTHON_DLL_PATH.empty()) {
-    LOG(INFO) << L"Setting Python DLL path: " << PYTHON_DLL_PATH.c_str() << std::endl;
-    SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_DLL_PATH, PYTHON_DLL_PATH.c_str());
+  if (PYTHON_DLL_PATH.empty()) {
+    LOG(INFO) << L"No Python DLL path provided via command line" << std::endl;
   } else {
-    LOG(INFO) << L"Python DLL path not found in environment variables" << std::endl;
+	LOG(INFO) << L"Python DLL path received from command line: " << PYTHON_DLL_PATH.c_str() << std::endl;
   }
 
-  // Add Python Virtual Environment path environment variable if it exists
-  if (!PYTHON_VIRTUALENV_PATH.empty()) {
-    LOG(INFO) << L"Setting Python Virtual Environment path: " << PYTHON_VIRTUALENV_PATH.c_str() << std::endl;
-    SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_VIRTUALENV_PATH, PYTHON_VIRTUALENV_PATH.c_str());
+  // Python Virtual Environment path is now handled entirely via command line arguments
+  if (PYTHON_VIRTUALENV_PATH.empty()) {
+	LOG(INFO) << L"No Python Virtual Environment path provided via command line" << std::endl;
   } else {
-    LOG(INFO) << L"Python Virtual Environment path not found in environment variables" << std::endl;
+	LOG(INFO) << L"Python Virtual Environment path received from command line: " << PYTHON_VIRTUALENV_PATH.c_str() << std::endl;
   }
 
   sandbox::TargetServices* target_services = sandbox::SandboxFactory::GetTargetServices();

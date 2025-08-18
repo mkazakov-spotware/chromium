@@ -540,42 +540,9 @@ int Spawn(const algo::TargetOptions* options,
     std::wstring python_dll_path_str;
     if (options->python_dll_path && wcslen(options->python_dll_path) > 0) {
       LOG(INFO) << "Setting Python DLL path from config: " << options->python_dll_path;
-      // Set the environment variable for the target process
-      SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_DLL_PATH, options->python_dll_path);
       python_dll_path_str = options->python_dll_path;
     } else {
-      // Fallback to checking environment variable
-      wchar_t python_dll_path[MAX_PATH] = {0};
-      DWORD path_length = GetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_DLL_PATH, python_dll_path, MAX_PATH);
-      if (path_length > 0) {
-        LOG(INFO) << "Using Python DLL path from environment: " << python_dll_path;
-        // Ensure it's available for the target process
-        SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_DLL_PATH, python_dll_path);
-        python_dll_path_str = python_dll_path;
-      } else {
-        LOG(INFO) << "No Python DLL path found in config or environment";
-      }
-    }
-
-    // Check if Python Virtual Environment path is provided in the options
-    std::wstring python_virtualenv_path_str;
-    if (options->python_virtualenv_path && wcslen(options->python_virtualenv_path) > 0) {
-      LOG(INFO) << "Setting Python Virtual Environment path from config: " << options->python_virtualenv_path;
-      // Set the environment variable for the target process
-      SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_VIRTUALENV_PATH, options->python_virtualenv_path);
-      python_virtualenv_path_str = options->python_virtualenv_path;
-    } else {
-      // Fallback to checking environment variable
-      wchar_t python_virtualenv_path[MAX_PATH] = {0};
-      DWORD path_length = GetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_VIRTUALENV_PATH, python_virtualenv_path, MAX_PATH);
-      if (path_length > 0) {
-        LOG(INFO) << "Using Python Virtual Environment path from environment: " << python_virtualenv_path;
-        // Ensure it's available for the target process
-        SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_VIRTUALENV_PATH, python_virtualenv_path);
-        python_virtualenv_path_str = python_virtualenv_path;
-      } else {
-        LOG(INFO) << "No Python Virtual Environment path found in config or environment";
-      }
+      LOG(INFO) << "No Python DLL path found in config";
     }
 
     bool enable_file_logging = IsFileLoggingEnabled();

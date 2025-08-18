@@ -39,28 +39,6 @@ int _tmain(int argc, wchar_t* argv[]) {
 //  Sleep(10 * 1000);
     Sleep(1 * 1000);
 
-    // Check for Python DLL path
-    wchar_t python_dll_path[MAX_PATH] = {0};
-    DWORD path_length = GetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_DLL_PATH, python_dll_path, MAX_PATH);
-    if (path_length > 0) {
-      LOG(INFO) << "Using Python DLL path: " << python_dll_path;
-      // Re-set it to ensure it's available to the .NET process
-      SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_DLL_PATH, python_dll_path);
-    } else {
-      LOG(INFO) << "No Python DLL path found in environment";
-    }
-
-    // Check for Python Virtual Environment path
-    wchar_t python_virtualenv_path[MAX_PATH] = {0};
-    path_length = GetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_VIRTUALENV_PATH, python_virtualenv_path, MAX_PATH);
-    if (path_length > 0) {
-      LOG(INFO) << "Using Python Virtual Environment path: " << python_virtualenv_path;
-      // Re-set it to ensure it's available to the .NET process
-      SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_VIRTUALENV_PATH, python_virtualenv_path);
-    } else {
-      LOG(INFO) << "No Python Virtual Environment path found in environment";
-    }
-
     if (argc > 1) {
         return host_main(argc, argv);
     }
