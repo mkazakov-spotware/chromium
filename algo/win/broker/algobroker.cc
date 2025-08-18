@@ -252,8 +252,7 @@ bool InitializeChildProcessLogging() {
 
 ResultCode SetupProtectedMode(
   const scoped_refptr<TargetPolicy>& target_policy,
-  const wchar_t* package_name,
-  const wchar_t* python_dll_path = nullptr) {
+  const wchar_t* package_name) {
   ResultCode result;
 
   // If stdout/stderr point to a Windows console, these calls will
@@ -531,18 +530,9 @@ int Spawn(const algo::TargetOptions* options,
     scoped_refptr<TargetPolicy> target_policy
         = broker_services->CreatePolicy();
 
-    result_code = SetupProtectedMode(target_policy, options->package_name, options->python_dll_path);
+    result_code = SetupProtectedMode(target_policy, options->package_name);
     if (result_code != SBOX_ALL_OK) {
       break;
-    }
-
-    // Check if Python DLL path is provided in the options
-    std::wstring python_dll_path_str;
-    if (options->python_dll_path && wcslen(options->python_dll_path) > 0) {
-      LOG(INFO) << "Setting Python DLL path from config: " << options->python_dll_path;
-      python_dll_path_str = options->python_dll_path;
-    } else {
-      LOG(INFO) << "No Python DLL path found in config";
     }
 
     bool enable_file_logging = IsFileLoggingEnabled();

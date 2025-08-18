@@ -175,8 +175,7 @@ int run_broker_main(int argc, wchar_t** argv) {
             fs_rules.c_str(),            // file rules
             reg_rules.c_str(),           // reg_rules
             pipe_rules.c_str(),          // np_rules
-            event_rules.c_str(),         // ev_rules
-            python_dll_path.c_str()      // python_dll_path
+            event_rules.c_str()          // ev_rules
         };
 
 		Sleep(100);
