@@ -151,8 +151,19 @@ int run_broker_main(int argc, wchar_t** argv) {
         const auto reg_rules = get_value(REG_RULES, root);
         const auto python_dll_path = get_value(PYTHON_DLL_PATH, root);
         const auto python_virtualenv_path = get_value(PYTHON_VIRTUALENV_PATH, root);
-        std::wstring quoted_title = L"\"" + title + L"\"";
-        const auto cmd = quoted_title + WIDE_SPACE + target + WIDE_SPACE + args;
+        // Build command line with named arguments
+        std::wstring cmd = std::wstring(L"--title=") + L"\"" + title + L"\"";
+        cmd += WIDE_SPACE + L"--target-id=" + L"\"" + target + L"\"";
+
+        if (!python_virtualenv_path.empty()) {
+            std::wstring venv_path = std::wstring(L"--python-venv=") + L"\"" + python_virtualenv_path + L"\"";
+            cmd += WIDE_SPACE + venv_path;
+        }
+        if (!python_dll_path.empty()) {
+            std::wstring dll_path = std::wstring(L"--python-dll=") + L"\"" + python_dll_path + L"\"";
+            cmd += WIDE_SPACE + dll_path;
+        }
+        cmd += WIDE_SPACE + args;
 
         algo::TargetInformation* target_result = new algo::TargetInformation;
         algo::TargetOptions* options = new algo::TargetOptions{
@@ -165,8 +176,7 @@ int run_broker_main(int argc, wchar_t** argv) {
             reg_rules.c_str(),           // reg_rules
             pipe_rules.c_str(),          // np_rules
             event_rules.c_str(),         // ev_rules
-            python_dll_path.c_str(),     // python_dll_path
-            python_virtualenv_path.c_str() // python_virtualenv_path
+            python_dll_path.c_str()      // python_dll_path
         };
 
         int result = Spawn(options, target_result);
