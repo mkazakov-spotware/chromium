@@ -1,6 +1,7 @@
 #include "algo/win/host/algohost.h"
 
 #include <iostream>
+#include <vector>
 #include "algo/win/broker/algobroker.h"
 
 #include <tchar.h>
@@ -61,29 +62,50 @@ const string_t ENDPOINT_CONFIG = read_environment_variable(L"__CT_ALGOHOST_ENDPO
 const string_t ENDPOINT_TYPE = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_TYPE");
 const string_t ENDPOINT_METHOD = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_METHOD");
 const string_t PRELOAD_ENDPOINT_METHOD = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_PRELOAD_METHOD");
-const string_t PYTHON_DLL_PATH = read_environment_variable(algo::CT_ALGOHOST_SESSION_PYTHON_DLL_PATH);
-const string_t PYTHON_VIRTUALENV_PATH = read_environment_variable(algo::CT_ALGOHOST_SESSION_PYTHON_VIRTUALENV_PATH);
+string_t PYTHON_VIRTUALENV_PATH;
+string_t PYTHON_DLL_PATH;
 const string_t CONFIGURE_PYTHON_METHOD = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_CONFIGURE_PYTHON_METHOD");
 
 extern "C" {
   extern __declspec(dllimport) char g_target_id[1 << 8];
 }
 
-void set_target(int argc, wchar_t** argv) {
-  if (argc < 2) {
-    return;
+void parse_command_line_arguments(int argc, wchar_t** argv) {
+  for (int i = 0; i < argc; i++) {
+    std::wstring arg = argv[i];
+    if (arg.find(L"--target-id=") == 0) {
+      const auto target_id = arg.substr(12);
+      const auto narrow_id = std::string(target_id.begin(), target_id.end());
+      strcpy(g_target_id, narrow_id.c_str());
+      LOG(INFO) << "Found target ID from command line: " << target_id.c_str();
+    }
+    else if (arg.find(L"--python-venv=") == 0) {
+      PYTHON_VIRTUALENV_PATH = arg.substr(14);
+      LOG(INFO) << "Found Python Virtual Environment path from command line: " << PYTHON_VIRTUALENV_PATH.c_str();
+    }
+    else if (arg.find(L"--python-dll=") == 0) {
+      PYTHON_DLL_PATH = arg.substr(13);
+      LOG(INFO) << "Found Python DLL path from command line: " << PYTHON_DLL_PATH.c_str();
+    }
+    else if (arg.find(L"--title=") == 0) {
+      std::wstring title = arg.substr(8);
+      LOG(INFO) << "Found title from command line: " << title.c_str();
+    }
   }
-
-  const auto target_id = std::wstring(argv[1]);
-  const auto narrow_id = std::string(target_id.begin(), target_id.end());
-  strcpy(g_target_id, narrow_id.c_str());
+  
+  if (PYTHON_VIRTUALENV_PATH.empty()) {
+    LOG(INFO) << "No Python Virtual Environment path found in command line arguments";
+  }
+  if (PYTHON_DLL_PATH.empty()) {
+    LOG(INFO) << "No Python DLL path found in command line arguments";
+  }
 }
 
 int host_main(int argc, wchar_t* argv[])
 {
   InitializeChildProcessLogging();
 
-  set_target(argc, argv);
+  parse_command_line_arguments(argc, argv);
   LOG(INFO) << "HOST" << std::endl;
   warmup();
 
@@ -92,20 +114,17 @@ int host_main(int argc, wchar_t* argv[])
   SetEnvironmentVariable(L"DOTNET_GCCpuGroup", L"1");
   SetEnvironmentVariable(L"DOTNET_Thread_UseAllCpuGroups", L"1");
 
-  // Add Python DLL path environment variable if it exists
-  if (!PYTHON_DLL_PATH.empty()) {
-    LOG(INFO) << L"Setting Python DLL path: " << PYTHON_DLL_PATH.c_str() << std::endl;
-    SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_DLL_PATH, PYTHON_DLL_PATH.c_str());
+  if (PYTHON_DLL_PATH.empty()) {
+    LOG(INFO) << L"No Python DLL path provided via command line" << std::endl;
   } else {
-    LOG(INFO) << L"Python DLL path not found in environment variables" << std::endl;
+	LOG(INFO) << L"Python DLL path received from command line: " << PYTHON_DLL_PATH.c_str() << std::endl;
   }
 
-  // Add Python Virtual Environment path environment variable if it exists
-  if (!PYTHON_VIRTUALENV_PATH.empty()) {
-    LOG(INFO) << L"Setting Python Virtual Environment path: " << PYTHON_VIRTUALENV_PATH.c_str() << std::endl;
-    SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_VIRTUALENV_PATH, PYTHON_VIRTUALENV_PATH.c_str());
+  // Python Virtual Environment path is now handled entirely via command line arguments
+  if (PYTHON_VIRTUALENV_PATH.empty()) {
+	LOG(INFO) << L"No Python Virtual Environment path provided via command line" << std::endl;
   } else {
-    LOG(INFO) << L"Python Virtual Environment path not found in environment variables" << std::endl;
+	LOG(INFO) << L"Python Virtual Environment path received from command line: " << PYTHON_VIRTUALENV_PATH.c_str() << std::endl;
   }
 
   sandbox::TargetServices* target_services = sandbox::SandboxFactory::GetTargetServices();
@@ -283,8 +302,37 @@ namespace
           return ERROR_BAD_DLL_ENTRYPOINT;
         }
 
-        // Call ConfigurePython with the Python DLL path
-        int python_result = configure_python_fn(nullptr, 0);
+        // Prepare arguments array for C# in format --python-venv="path" and --python-dll="path"
+        std::vector<std::wstring> args_vector;
+        
+        if (!PYTHON_VIRTUALENV_PATH.empty()) {
+          std::wstring formatted_arg = L"--python-venv=\"" + PYTHON_VIRTUALENV_PATH + L"\"";
+          args_vector.push_back(formatted_arg);
+          LOG(INFO) << "Passing Python Virtual Environment argument to C#: " << formatted_arg.c_str();
+        } else {
+          LOG(INFO) << "No Python Virtual Environment path to pass to C#";
+        }
+        
+        if (!PYTHON_DLL_PATH.empty()) {
+          std::wstring formatted_arg = L"--python-dll=\"" + PYTHON_DLL_PATH + L"\"";
+          args_vector.push_back(formatted_arg);
+          LOG(INFO) << "Passing Python DLL path argument to C#: " << formatted_arg.c_str();
+        } else {
+          LOG(INFO) << "No Python DLL path to pass to C#";
+        }
+
+        // Convert to array of const wchar_t* pointers
+        std::vector<const wchar_t*> args_array;
+        for (const auto& arg : args_vector) {
+          args_array.push_back(arg.c_str());
+        }
+        
+        // Pass array pointer and count to C#
+        const wchar_t** args_ptr = args_array.empty() ? nullptr : args_array.data();
+        int arg_count = static_cast<int>(args_array.size());
+
+        // Call ConfigurePython with arguments array and count
+        int python_result = configure_python_fn(reinterpret_cast<void*>(const_cast<wchar_t**>(args_ptr)), arg_count);
         if (python_result != 0) {
           LOG(ERROR) << "Failed to configure Python: " << python_result << std::endl;
           return ERROR_BAD_ENVIRONMENT;

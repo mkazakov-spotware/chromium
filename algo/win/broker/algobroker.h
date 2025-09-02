@@ -9,8 +9,6 @@
 
 namespace algo {
 
-constexpr const wchar_t* CT_ALGOHOST_SESSION_PYTHON_DLL_PATH = L"__CT_ALGOHOST_SESSION_PYTHON_DLL_PATH";
-constexpr const wchar_t* CT_ALGOHOST_SESSION_PYTHON_VIRTUALENV_PATH = L"__CT_ALGOHOST_SESSION_PYTHON_VIRTUALENV_PATH";
 constexpr const wchar_t* CT_ALGOHOST_SESSION_LOG_FILE_ENABLED = L"__CT_ALGOHOST_SESSION_LOG_FILE_ENABLED";
 constexpr const wchar_t* CT_ALGOHOST_SESSION_LOG_FILE_PATH = L"__CT_ALGOHOST_SESSION_LOG_FILE_PATH";
 constexpr const wchar_t* CT_ALGOHOST_TARGET_LOG_FILE_PATH = L"__CT_ALGOHOST_TARGET_LOG_FILE_PATH";
@@ -25,8 +23,6 @@ struct TargetOptions {
   const wchar_t* reg_rules;
   const wchar_t* np_rules;
   const wchar_t* ev_rules;
-  const wchar_t* python_dll_path;
-  const wchar_t* python_virtualenv_path;
 };
 
 struct TargetInformation {
@@ -34,9 +30,6 @@ struct TargetInformation {
   void* thread_handle;
   unsigned process_id;
   unsigned thread_id;
-};
-
-struct TargetInitializeOptions {
 };
 
 }

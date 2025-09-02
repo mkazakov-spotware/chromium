@@ -39,28 +39,6 @@ int _tmain(int argc, wchar_t* argv[]) {
 //  Sleep(10 * 1000);
     Sleep(1 * 1000);
 
-    // Check for Python DLL path
-    wchar_t python_dll_path[MAX_PATH] = {0};
-    DWORD path_length = GetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_DLL_PATH, python_dll_path, MAX_PATH);
-    if (path_length > 0) {
-      LOG(INFO) << "Using Python DLL path: " << python_dll_path;
-      // Re-set it to ensure it's available to the .NET process
-      SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_DLL_PATH, python_dll_path);
-    } else {
-      LOG(INFO) << "No Python DLL path found in environment";
-    }
-
-    // Check for Python Virtual Environment path
-    wchar_t python_virtualenv_path[MAX_PATH] = {0};
-    path_length = GetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_VIRTUALENV_PATH, python_virtualenv_path, MAX_PATH);
-    if (path_length > 0) {
-      LOG(INFO) << "Using Python Virtual Environment path: " << python_virtualenv_path;
-      // Re-set it to ensure it's available to the .NET process
-      SetEnvironmentVariable(algo::CT_ALGOHOST_SESSION_PYTHON_VIRTUALENV_PATH, python_virtualenv_path);
-    } else {
-      LOG(INFO) << "No Python Virtual Environment path found in environment";
-    }
-
     if (argc > 1) {
         return host_main(argc, argv);
     }
@@ -173,8 +151,19 @@ int run_broker_main(int argc, wchar_t** argv) {
         const auto reg_rules = get_value(REG_RULES, root);
         const auto python_dll_path = get_value(PYTHON_DLL_PATH, root);
         const auto python_virtualenv_path = get_value(PYTHON_VIRTUALENV_PATH, root);
-        std::wstring quoted_title = L"\"" + title + L"\"";
-        const auto cmd = quoted_title + WIDE_SPACE + target + WIDE_SPACE + args;
+        // Build command line with named arguments
+        std::wstring cmd = std::wstring(L"--title=") + L"\"" + title + L"\"";
+        cmd += WIDE_SPACE + L"--target-id=" + L"\"" + target + L"\"";
+
+        if (!python_virtualenv_path.empty()) {
+            std::wstring venv_path = std::wstring(L"--python-venv=") + L"\"" + python_virtualenv_path + L"\"";
+            cmd += WIDE_SPACE + venv_path;
+        }
+        if (!python_dll_path.empty()) {
+            std::wstring dll_path = std::wstring(L"--python-dll=") + L"\"" + python_dll_path + L"\"";
+            cmd += WIDE_SPACE + dll_path;
+        }
+        cmd += WIDE_SPACE + args;
 
         algo::TargetInformation* target_result = new algo::TargetInformation;
         algo::TargetOptions* options = new algo::TargetOptions{
@@ -186,10 +175,10 @@ int run_broker_main(int argc, wchar_t** argv) {
             fs_rules.c_str(),            // file rules
             reg_rules.c_str(),           // reg_rules
             pipe_rules.c_str(),          // np_rules
-            event_rules.c_str(),         // ev_rules
-            python_dll_path.c_str(),     // python_dll_path
-            python_virtualenv_path.c_str() // python_virtualenv_path
+            event_rules.c_str()          // ev_rules
         };
+
+		Sleep(100);
 
         int result = Spawn(options, target_result);
 
