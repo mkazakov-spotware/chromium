@@ -39,7 +39,8 @@ namespace
     void warmup();
 
     bool preload(load_assembly_and_get_function_pointer_fn load_assembly_and_get_function_pointer_fn,
-                 const char_t* asm_path);
+                 const char_t* asm_path,
+                 bool sandboxed);
 
     int configure_python(load_assembly_and_get_function_pointer_fn load_assembly_and_get_function_pointer_fn,
                         const char_t* endpoint_asm_path);
@@ -48,12 +49,6 @@ namespace
                            const char_t* endpoint_asm_path,
                            sandbox::TargetServices* target_services);
 
-    int start_without_preload(load_assembly_and_get_function_pointer_fn
-                                     load_assembly_and_get_function_pointer_fn,
-                              const char_t* endpoint_asm_path,
-                              sandbox::TargetServices* target_services);
-
-    bool IsWindows10OrGreater();
 }
 
 const string_t ENDPOINT_DIR = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_DIR");
@@ -149,14 +144,13 @@ int host_main(int argc, wchar_t* argv[])
   if (load_assembly_and_get_function_pointer_fn == nullptr)
         return ERROR_BAD_ENVIRONMENT;
 
-  if (IsWindows10OrGreater())
-    return start_without_preload(load_assembly_and_get_function_pointer_fn,
-                                 endpoint_asm_path.c_str(),
-                                 target_services);
-  else
-    return start_with_preload(load_assembly_and_get_function_pointer_fn,
-                              endpoint_asm_path.c_str(),
-                              target_services);
+  // Load the endpoint and run its preload before LowerToken() on every Windows version. With
+  // Windows Smart App Control on, the .NET runtime maps managed assemblies as images that Code
+  // Integrity must verify, and a third-party signature cannot be verified once the token is
+  // lowered to USER_LOCKDOWN: every assembly load after that fails (XT-19123).
+  return start_with_preload(load_assembly_and_get_function_pointer_fn,
+                            endpoint_asm_path.c_str(),
+                            target_services);
 }
 
 namespace
@@ -176,29 +170,11 @@ namespace
       return buffer;
     }
 
-    bool IsWindows10OrGreater()
-    {
-      double ret = 0.0;
-      NTSTATUS(WINAPI * RtlGetVersion)(LPOSVERSIONINFOEXW);
-      OSVERSIONINFOEXW osInfo;
-
-      *(FARPROC*)&RtlGetVersion =
-          GetProcAddress(GetModuleHandleA("ntdll"), "RtlGetVersion");
-
-      if (NULL != RtlGetVersion) {
-        osInfo.dwOSVersionInfoSize = sizeof(osInfo);
-        RtlGetVersion(&osInfo);
-        ret = (double)osInfo.dwMajorVersion;
-      }
-
-      return osInfo.dwMajorVersion >= 10;
-    }
-
     int start_with_preload(load_assembly_and_get_function_pointer_fn load_assembly_and_get_function_pointer_fn,
                            const char_t* endpoint_asm_path,
                            sandbox::TargetServices* target_services)
     {
-      if (!preload(load_assembly_and_get_function_pointer_fn, endpoint_asm_path))
+      if (!preload(load_assembly_and_get_function_pointer_fn, endpoint_asm_path, target_services != nullptr))
         return ERROR_BAD_DLL_ENTRYPOINT;
 
       // Configure Python before lowering token privileges
@@ -228,39 +204,10 @@ namespace
       return result;
     }
 
-    int start_without_preload(load_assembly_and_get_function_pointer_fn load_assembly_and_get_function_pointer_fn,
-                              const char_t* endpoint_asm_path,
-                              sandbox::TargetServices* target_services)
-    {
-      // Configure Python before lowering token privileges
-      int python_config_result = configure_python(load_assembly_and_get_function_pointer_fn, endpoint_asm_path);
-      if (python_config_result != 0) {
-        return python_config_result;
-      }
-      
-      // Now it's safe to lower token
-      if (target_services != nullptr)
-          target_services->LowerToken();
-      else
-          LOG(INFO) << "There are no target services!!!" << std::endl;
-
-      component_entry_point_fn entry_point_fn = nullptr;
-      if (load_assembly_and_get_function_pointer_fn(
-              endpoint_asm_path,
-              ENDPOINT_TYPE.c_str(), ENDPOINT_METHOD.c_str(),
-              nullptr,
-              nullptr,
-              reinterpret_cast<void**>(&entry_point_fn)) != 0 || entry_point_fn == nullptr)
-        return ERROR_BAD_DLL_ENTRYPOINT;
-
-      int result = entry_point_fn(nullptr, 0);
-      LOG(INFO) << "entry_point_fn(nullptr, 0) call result: " << result << std::endl;
-      return result;
-    }
-
     bool preload(load_assembly_and_get_function_pointer_fn
                         load_assembly_and_get_function_pointer_fn,
-                 const char_t* asm_path)
+                 const char_t* asm_path,
+                 bool sandboxed)
     {
       component_entry_point_fn preload_entry_point_fn = nullptr;
       if (load_assembly_and_get_function_pointer_fn(
@@ -272,7 +219,8 @@ namespace
               reinterpret_cast<void**>(&preload_entry_point_fn)) != 0 || preload_entry_point_fn == nullptr)
               return false;
 
-      preload_entry_point_fn(nullptr, 0);
+      // Endpoint.Preload loads the whole managed host only when the token is lowered after it.
+      preload_entry_point_fn(nullptr, sandboxed ? 1 : 0);
       return true;
     }
 
